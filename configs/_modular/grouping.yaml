@@ -1,0 +1,4 @@
+grouping:
+  npoint_thr: 100 # discard smaller clusters immediately
+  radius: 0.3 # grouping radius
+  tree_conf_thresh: 0.5

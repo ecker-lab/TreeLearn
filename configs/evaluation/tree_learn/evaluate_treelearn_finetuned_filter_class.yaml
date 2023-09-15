@@ -1,0 +1,27 @@
+default_args: ["configs/_modular/model.yaml", "configs/_modular/grouping.yaml"]
+
+####################### modification of default args
+model:
+  mode: 'classifier'
+  use_feats: True
+  dim_feat: 32
+  num_blocks: 2
+  max_num_points_per_voxel: 100
+
+####################### further args
+base_dir: '../datasets_simlink/data_trees/eval_treelearn_finetuned_filter_class'
+pretrain_classifier: 'work_dirs/train_classifier_80e_finetuned/epoch_67.pth'
+grouping_radii: [0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+local_filtering: False
+global_filtering: True
+use_classifier: True
+
+partitions:
+  # xy_partition_relative: ~
+  # z_partition_relative: ~
+  # xy_partition_absolute: ~
+  # z_partition_absolute: ~
+  xy_partition_relative: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+  z_partition_relative: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+  xy_partition_absolute: [0, 1.2, 2.4, 3.6, 4.8, 6, 7.2, 8.4, 9.6, 10.8, 15]
+  z_partition_absolute: [0, 3.8, 7.6, 11.4, 15.2, 19, 22.8, 26.6, 30.4, 34.2, 40]

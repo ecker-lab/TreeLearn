@@ -1,0 +1,11 @@
+dataset_train:
+  training: True
+  data_root: '../datasets_simlink/data_trees/training_data/random_crops'
+  data_augmentations: 
+    jitter: True
+    flip: True
+    rot: True
+    scaled: False
+    point_jitter: False
+  inner_square_edge_length: 8
+  use_tree_height_in_offset: True

@@ -1,0 +1,38 @@
+default_args: ["configs/_modular/model.yaml", "configs/_modular/dataset_train.yaml", "configs/_modular/dataset_test.yaml"]
+
+############ modification default args
+model:
+  spatial_shape: [500, 500, 1000]
+
+############ non-default args
+dataloader:
+  train:
+    batch_size: 4
+    num_workers: 2
+  test:
+    batch_size: 2
+    num_workers: 2
+
+optimizer:
+  type: 'AdamW'
+  lr: 0.003
+  weight_decay: 0.001
+
+scheduler:
+  t_initial: 1000
+  lr_min: 0.00005
+  cycle_decay: 1
+  warmup_lr_init: 0.00001
+  warmup_t: 50
+  cycle_limit: 1
+  t_in_epochs: True
+
+epochs: 1200
+examples_per_epoch: 500
+fp16: True
+pretrain: '../datasets_simlink/data_trees/extras/hais_ckpt_spconv2.pth'
+grad_norm_clip: True
+
+# validation args
+save_frequency: 20
+validation_frequency: 20

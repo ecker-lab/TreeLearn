@@ -1,0 +1,13 @@
+sample_generation:
+  # forest voxelization
+  voxel_size: 0.1
+
+  # feature computation
+  search_radius_features: 0.35 # ~ if features are not to be used
+
+  # sample generator args
+  sample_generator:
+    n_neigh_sor: 2
+    multiplier_sor: 1
+    rad: 0.2086
+    npoints_rad: 5

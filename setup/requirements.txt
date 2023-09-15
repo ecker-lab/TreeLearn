@@ -1,0 +1,15 @@
+# spconv-cu114 # 102 on deimos
+spconv-cu102 # 102 on deimos
+munch==2.5.0
+pandas==2.0.0
+plyfile==0.9
+pyyaml==6.0
+scikit-learn==1.2.2
+six==1.16.0
+tqdm==4.65.0
+open3d==0.17.0
+jakteristics==0.5.1
+shapely==2.0.1
+geopandas==0.12.2
+alphashape==1.3.1
+plotly-express==0.4.1

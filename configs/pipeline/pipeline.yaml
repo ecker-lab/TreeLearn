@@ -1,0 +1,48 @@
+default_args: ["configs/_modular/sample_generation.yaml", "configs/_modular/model.yaml", "configs/_modular/grouping.yaml", "configs/_modular/dataset_test.yaml"]
+
+############ modification of default args
+sample_generation:
+  inner_edge: 8
+  outer_edge: 11
+  stride: 0.5
+
+model:
+  spatial_shape: [500, 500, 1000]
+
+grouping:
+  radius: 0.6
+
+############ non-default args
+forest_path: '../datasets_simlink/data_trees/test_stechlin/forests/Stechlin_Winter.npy'
+# forest_path: '../datasets_simlink/data_trees/test_plot7/forests/plot7.npy'
+pretrain_pointwise: 'work_dirs/finetune_pointwise_all_data/epoch_17.pth'
+pretrain_classifier: 'work_dirs/train_classifier_80e_finetuned/epoch_67.pth'
+fp16: True
+
+tile_generation: False 
+global_filtering: True
+local_filtering: False
+
+model_classifier:
+  mode: 'classifier'
+  dim_feat: 32
+  num_blocks: 2
+  max_num_points_per_voxel: 100
+  spatial_shape: ~
+  use_feats: True
+
+dataloader:
+  batch_size: 1
+  num_workers: 1
+
+shape_cfg:
+  alpha: 0 # alpha value in hull calculation. 0 leads to convex hull. increasingly focuses on non-convex shape for higher values. alpha=0.6 nice for non-convex plots
+  outer_remove: 11
+  buffer_size_to_determine_edge_trees: 0.3
+
+save_cfg:
+  only_pointwise: False
+  save_pointwise: True
+  save_treewise: True
+  return_type: "voxelized" # returns predictions on either the "voxelized", "voxelized_and_denoised" or "original" point cloud
+  save_format: 'npy' # save format for predicted understory and trees

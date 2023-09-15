@@ -1,0 +1,12 @@
+default_args: ["configs/_modular/sample_generation.yaml"]
+
+base_dir: '../datasets_simlink/data_trees/training_data'
+
+# further args needed for random crop generation
+occupancy_res: 1
+n_points_to_calculate_occupancy: 100000
+min_percent_occupied_fill: 0.9
+how_far_fill: 9
+min_percent_occupied_choose: 0.75
+n_samples_total: 100
+chunk_size: 40

@@ -1,0 +1,14 @@
+model:
+  mode: 'pointwise'
+  kernel_size: 3
+  channels: 32
+  num_blocks: 7
+  use_feats: False
+  use_coords: False
+  dim_coord: 3
+  dim_feat: 4
+  max_num_points_per_voxel: 3
+  fixed_modules: []
+  spatial_shape: ~
+  n_voxels_in_each_direction: 20 # used for classifier
+  voxel_size: 0.1 # used for pointwise

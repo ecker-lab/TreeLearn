@@ -1,0 +1,5 @@
+dataset_test:
+  training: False
+  data_root: '../datasets_simlink/data_trees/validation_data/tiles'
+  inner_square_edge_length: 8
+  use_tree_height_in_offset: True

@@ -1,0 +1,7 @@
+base_dir: '../datasets_simlink/data_trees/eval_lidar360'
+
+partitions:
+  xy_partition_relative: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+  z_partition_relative: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+  xy_partition_absolute: [0, 1.2, 2.4, 3.6, 4.8, 6, 7.2, 8.4, 9.6, 10.8, 15]
+  z_partition_absolute: [0, 3.8, 7.6, 11.4, 15.2, 19, 22.8, 26.6, 30.4, 34.2, 40]
