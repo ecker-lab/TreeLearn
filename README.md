@@ -17,7 +17,7 @@ To download the data, we recommend using the script tree_learn/util/download.py.
 
 | Data        | Dataset Download                                             | Dataset Size |
 | ----------- | :----------------------------------------------------------- | ------------ |
-| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder /scratch/usr/nimdelde/data/benchmark_dataset``` | 13 GB        |
+| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark_dataset``` | 13 GB        |
 | Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark_dataset``` | 13 GB        |
 | Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/automatically_segmented``` | 2 GB        |
 | Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/automatically_segmented``` | 13 GB        |
