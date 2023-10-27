@@ -15,13 +15,13 @@ The dataset as well as trained models can be found at [this url](https://doi.org
 
 To download the data, we recommend using the script tree_learn/util/download.py. Here, we list out the commands to download the data in either the npz or the las format:
 
-| Data        | Dataset Download                                             | Dataset Size |
-| ----------- | :----------------------------------------------------------- | ------------ |
-| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark_dataset``` | 13 GB        |
-| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark_dataset``` | 13 GB        |
-| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/automatically_segmented``` | 2 GB        |
-| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/automatically_segmented``` | 13 GB        |
-| Model checkpoints   | ```python tree_learn/util/download.py --dataset_name checkpoints --root_folder data/checkpoints``` | 13 GB        |
+| Data        | Dataset Download                                             | 
+| ----------- | :----------------------------------------------------------- |
+| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark_dataset``` | 
+| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark_dataset``` | 
+| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/automatically_segmented``` | 
+| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/automatically_segmented``` |
+| Model checkpoints   | ```python tree_learn/util/download.py --dataset_name checkpoints --root_folder data/checkpoints``` | 
 | Extra files   | ```python tree_learn/util/download.py --dataset_name extra --root_folder data/extra``` | 13 GB        |
 
 To directly download the benchmark dataset in las format via command line: 
