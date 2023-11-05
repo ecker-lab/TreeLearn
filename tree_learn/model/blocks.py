@@ -5,7 +5,7 @@ import torch
 from spconv.pytorch.modules import SparseModule
 from torch import nn
 
-# just a num_layers layer MLP
+
 class MLP(nn.Sequential):
 
     def __init__(self, in_channels, out_channels, norm_fn=None, num_layers=2):
@@ -27,7 +27,6 @@ class MLP(nn.Sequential):
         nn.init.constant_(self[-1].bias, 0)
 
 
-# current 1x1 conv in spconv2x has a bug. It will be removed after the bug is fixed (just 1x1 convolutions to change number of channels)
 class Custom1x1Subm3d(spconv.SparseConv3d):
 
     def forward(self, input):
@@ -41,7 +40,6 @@ class Custom1x1Subm3d(spconv.SparseConv3d):
         return out_tensor
 
 
-# RF = 5x5x5; output has same size as input due to padding
 class ResidualBlock(SparseModule):
 
     def __init__(self, in_channels, out_channels, norm_fn, kernel_size, indice_key=None):
@@ -151,28 +149,39 @@ class UBlock(nn.Module):
             output = self.blocks_tail(output)
         return output
 
+# The following calculations do not account for the input convolutions which further increase the receptive field.
+# receptive field of ublock with n = len(nPlanes): (1 + block_reps * ((kernel_size - 1) * 2) * 2^(n-1)) + block_reps * ((kernel_size - 1) * 2) * (2^(n-1) - 1) (proof by induction)
+
+# derivation for block_reps = 2 and kernel_size = 3
+# derivation: 9 * 2 + 8
+# derivation: (9 * 2 + 8) * 2 + 8
+# derivation: ((9 * 2 + 8) * 2 + 8) * 2 + 8
+# derivation: (((9 * 2 + 8) * 2 + 8) * 2 + 8) * 2 + 8
+# etc ...
+
+# for standard configuration of n = 7, it follows that RF = 9 * 2^6 + 8 * (2^6 - 1) = 1080x1080x1080
+# for kernel size of 5 instead of 3 it follows for standard configuration that RF = 17 * 2^6 + 16 * (2^6 - 1)
+# for kernel size of 3 and n = 2, it follows that RF = 9 * 2^1 + 8 * (2^1 - 1) = 26
+
 
 class LBlock(nn.Module):
     def __init__(self, nPlanes, norm_fn, block_reps, block, kernel_size, indice_key_id=1):
         super().__init__()
+        blocks = {}
 
-        self.nPlanes = nPlanes
-
-        blocks = {
+        first_block = {
             'block{}'.format(i):
             block(nPlanes[0], nPlanes[0], norm_fn, kernel_size, indice_key=None)
             for i in range(block_reps)
         }
-
-        blocks = OrderedDict(blocks)
-        # 2 residual blocks with RF 5x5x5 each; RF += 8 ()
-        self.blocks = spconv.SparseSequential(blocks)
-        further_blocks = {}
+        first_block = OrderedDict(first_block)
+        first_block = spconv.SparseSequential(first_block)
+        blocks[f"block{0}"] = first_block
 
         for i in range(len(nPlanes) - 1):
-            key = f"further_block_{i}"
-            # downsample by factor 2; RF *= 2
-            further_blocks[key] = spconv.SparseSequential(
+            resblocks = [block(nPlanes[i+1], nPlanes[i+1], norm_fn, kernel_size, indice_key=None) for _ in range(block_reps)]
+            
+            blocks[f"block{i+1}"] = spconv.SparseSequential(
                 norm_fn(nPlanes[i]), nn.ReLU(),
                 spconv.SparseConv3d(
                     nPlanes[i],
@@ -180,27 +189,11 @@ class LBlock(nn.Module):
                     kernel_size=2,
                     stride=2,
                     bias=False,
-                 ))
+                 ),
+                 *resblocks)
 
-        self.further_blocks = spconv.SparseSequential(OrderedDict(further_blocks))
+        self.blocks = spconv.SparseSequential(OrderedDict(blocks))
 
     def forward(self, x):
-        x = self.blocks(x)
-        output = self.further_blocks(x)
+        output = self.blocks(x)
         return output
-
-
-    # The following calculations do not account for the input convolutions
-    # receptive field of ublock with n = len(nPlanes): (1 + block_reps * ((kernel_size - 1) * 2) * 2^(n-1)) + block_reps * ((kernel_size - 1) * 2) * (2^(n-1) - 1) (proof by induction)
-    
-    # derivation for block_reps = 2 and kernel_size = 3
-    # derivation: 9 * 2 + 8
-    # derivation: (9 * 2 + 8) * 2 + 8
-    # derivation: ((9 * 2 + 8) * 2 + 8) * 2 + 8
-    # derivation: (((9 * 2 + 8) * 2 + 8) * 2 + 8) * 2 + 8
-    # etc ...
-
-    # for standard configuration of n = 7, it follows that RF = 9 * 2^6 + 8 * (2^6 - 1) = 1080x1080x1080
-    # for kernel size of 5 instead of 3 it follows for standard configuration that RF = 17 * 2^6 + 16 * (2^6 - 1)
-
-    # for kernel size of 3 and n = 2, it follows that RF = 9 * 2^1 + 8 * (2^1 - 1) = 26

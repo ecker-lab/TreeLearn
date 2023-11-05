@@ -1,0 +1,32 @@
+# default_args is used to include configs from the _modular folder into this config. This ensures a modular way of combining different config files.
+default_args: ["configs/_modular/grouping.yaml"]
+
+base_dir: '../datasets_simlink/data_trees/training_data' # base dir that contains a folder named "forests" which contains LABELED forest point clouds for which training samples are to be generated. 
+
+############ modification of default args
+pipeline:
+  # data
+  tile_generation: True
+  # geometric params
+  shape_cfg:
+    alpha: 0
+    outer_remove: 5
+    buffer_size_to_determine_edge_trees: 0.3
+  # saving
+  save_cfg:
+    only_pointwise: True
+    save_pointwise: True
+    save_treewise: False
+    return_type: "voxelized_and_denoised"
+    save_format: 'npy'
+  pretrain_pointwise: 'work_dirs/finetune_pointwise_all_data/finetuned_checkpoint_pointwise_prediction.pth'
+
+############ non-default args
+instances:
+  grouping_radii : [0.05, 0.1, 0.2] # use different grouping radii to obtain diverse predicted trees
+  local_filtering : False # use local filtering before grouping (default False)
+  global_filtering : True # use global filtering before grouping (default True)
+
+classifier_training_data:
+  iou_threshold_positive: [0.75, 0.75, 0.75] # minimum iou (for each groupind radius) with labeled trees for a predicted tree to be considered positive
+  iou_threshold_negative: [0.25, 0.25, 0.25] # maximum iou (for each groupind radius) with labeled trees for a predicted tree to be considered negative

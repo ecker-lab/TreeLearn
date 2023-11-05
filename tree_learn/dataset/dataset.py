@@ -44,7 +44,7 @@ class TreeDataset(Dataset):
         
         # get entries
         xyz = data['points']
-        feat = data['feat']
+        feat = data['feat'] if data['feat'] is not None else np.ones((len(xyz), 4))
         instance_label = data.get('instance_label', np.ones(len(xyz))) # dummy value if not in dict
         semantic_label = np.empty(len(instance_label))
         semantic_label[instance_label == FLOOR_CLASS_IN_RAW_DATA] = UNDERSTORY_CLASS_IN_DATASET

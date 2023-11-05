@@ -202,6 +202,7 @@ def get_instances(coords, offset, semantic_prediction_logits, grouping_cfg, tree
 
 
 def group_dbscan(cluster_coords, radius, npoint_thr, start_num_preds, downsample=False):
+    # downsampling to avoid excessive RAM usage during DBSCAN.
     if downsample:
         voxel_size = radius/4
         pcd = o3d.geometry.PointCloud()
@@ -364,11 +365,34 @@ def propagate_preds(source_coords, source_preds, target_coords, n_neighbors):
 def save(coords, save_format, save_name, save_folder):
     if save_format == "ply":
         pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(coords)
-        pcd.colors = o3d.utility.Vector3dVector(np.tile(np.random.rand(1, 3), (len(coords), 1)))
-        save_path = osp.join(save_folder, f'{save_name}.ply')
-        o3d.io.write_point_cloud(save_path, pcd)
-    elif save_format == "npy":
+        if coords.shape[1] == 3:
+            pcd.points = o3d.utility.Vector3dVector(coords)
+            pcd.colors = o3d.utility.Vector3dVector(np.tile(np.random.rand(1, 3), (len(coords), 1)))
+            save_path = osp.join(save_folder, f'{save_name}.ply')
+            o3d.io.write_point_cloud(save_path, pcd)
+        elif coords.shape[1] == 4:
+            preds = coords[:, -1]
+            coords = coords[:, :3]
+            preds_unique = np.unique(preds)
+            num_drawpoints = len(coords)
+
+            n_color_palette = len(preds_unique)
+            color_palette = np.random.uniform(size=(n_color_palette, 3))
+            # define how preds_unique get mapped to color palette
+            color_palette_mapping = {j: i for i, j in enumerate(np.sort(preds_unique))}
+            color_palette[-1] = [0,0,0]
+            colors = np.empty((num_drawpoints, 3))
+
+            for i in range(num_drawpoints):
+                ind = int(preds[i])
+                colors[i] = color_palette[color_palette_mapping[ind]]
+
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(coords)
+            pcd.colors = o3d.utility.Vector3dVector(colors)
+            save_path = osp.join(save_folder, f'{save_name}.ply')
+            o3d.io.write_point_cloud(save_path, pcd)
+    if save_format == "npy":
         save_path = osp.join(save_folder, f'{save_name}.npy')
         np.save(save_path, coords)
     elif save_format == "txt":
@@ -396,21 +420,3 @@ def save_treewise(coords, instance_preds, cluster_means_within_hull, insts_not_a
             save(pred_coord, save_format, str(int(i)), trunk_base_inside_dir)
         elif not cluster_means_within_hull[i]:
             save(pred_coord, save_format, str(int(i)), trunk_base_outside_dir)
-
-
-# def tidy_up():
-#     files = glob.glob('data/tiles/*')
-#     for f in files:
-#         os.remove(f)
-#     files = glob.glob('data/tiles_extensions/*')
-#     for f in files:
-#         os.remove(f)
-#     files = glob.glob('data/output/trunk_inner/edge/*')
-#     for f in files:
-#         os.remove(f)
-#     files = glob.glob('data/output/trunk_inner/completely/*')
-#     for f in files:
-#         os.remove(f)
-#     files = glob.glob('data/output/trunk_outer/*')
-#     for f in files:
-#         os.remove(f)

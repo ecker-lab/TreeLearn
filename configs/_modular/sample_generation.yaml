@@ -1,12 +1,12 @@
 sample_generation:
-  # forest voxelization
-  voxel_size: 0.1
-
-  # feature computation
-  search_radius_features: 0.35 # ~ if features are not to be used
+  voxel_size: 0.1 # downsampling of input point cloud so that there is only one point left within a cube of size voxel_size x voxel_size x voxel_size
+  search_radius_features: ~ # search radius to compute local geometry features of a point (not used in the paper), set to ~ if no features should be calculated
+  inner_edge: 8 # only needed or tile generation and not for random crops. Designates the inner area to be used for making predictions
+  outer_edge: 11 # only needed or tile generation and not for random crops. Designates the outer area which is used as context
+  stride: 0.5 # only needed or tile generation and not for random crops. Designates the stride of the inner square. If set to 1, the tiles are generated without overlap. Smaller numbers lead to overlap.
 
   # sample generator args
-  sample_generator:
+  sample_generator: # arguments for statistical and neighbor based filtering of point cloud. For details: http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
     n_neigh_sor: 2
     multiplier_sor: 1
     rad: 0.2086

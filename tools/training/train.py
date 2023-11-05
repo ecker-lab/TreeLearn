@@ -11,7 +11,7 @@ from tree_learn.util import (checkpoint_save, init_train_logger, load_checkpoint
                             is_multiple, get_args_and_cfg, build_cosine_scheduler, build_optimizer,
                             point_wise_loss, get_eval_res_components, get_segmentation_metrics, get_voxel_sizes,
                             build_dataloader)
-from tree_learn.model import TreeLearn, LNet
+from tree_learn.model import TreeLearn, Classifier
 from tree_learn.dataset import TreeDataset
 
 TREE_CLASS_IN_DATASET = 0
@@ -126,16 +126,14 @@ def main():
     logger, writer = init_train_logger(config, args)
 
     # training objects
-    # if config.model.mode == "classifier":
-    #     model = LNet(**config.model).cuda()
-    # else:
-    model = TreeLearn(**config.model).cuda()
-    # if config.model.mode == "lnet":
-    #     model = LNet(**config.model).cuda()
-    # else: 
-    #     model = TreeLearn(**config.model).cuda()
+    if config.model.mode == "pointwise":
+        model = TreeLearn(**config.model).cuda()
+    elif config.model.mode == "classifier":
+        model = Classifier(**config.model).cuda()
+    
     # from torchinfo import summary
     #logger.info(summary(model))
+    
     optimizer = build_optimizer(model, config.optimizer)
     scheduler = build_cosine_scheduler(config.scheduler, optimizer)
     scaler = torch.cuda.amp.GradScaler(enabled=config.fp16)

@@ -307,9 +307,8 @@ def crop_and_set_bg_color(fig, bg_hex="#e6e6e6", save_path=None):
         return out_buf
 
 
-def plot_instance_evaluation_segments(ax, values_software, values_net, values_net_finetuned, fontsize, legend_size, bbox_to_anchor, measure, labels,
-                                     include_legend=False, y_range=[0.6, 1], y_step=10, colors=["#ff7f0e", "#1f77b4", "#2ca02c"], x_label="segment"):
-    y_pos = np.arange(len(values_software))
+def plot_instance_evaluation_segments(ax, values, fontsize, measure, y_range=[0.6, 1], y_step=10, color="#ff7f0e", x_label="segment"):
+    y_pos = np.arange(len(values))
     ax.spines.right.set_visible(False)
     ax.spines.top.set_visible(False)
     ax.set_xticks(y_pos, np.arange(1, 11))
@@ -317,12 +316,7 @@ def plot_instance_evaluation_segments(ax, values_software, values_net, values_ne
     ax.set_xlabel(x_label, fontsize=fontsize)
     ax.set_ylabel(measure, fontsize=fontsize)
     ax.set_ylim(y_range)
-    ax.plot(values_software, color=colors[0], label=labels[0], linestyle='dashed',dashes=[1, 1])
-    ax.plot(values_net, color=colors[1], label=labels[1])
-    ax.plot(values_net_finetuned, color=colors[2], label=labels[2])
+    ax.plot(values, color=color)
     ax.tick_params(axis='both', which='major', labelsize=fontsize)
-    if include_legend:
-        ax.legend(loc='upper center', bbox_to_anchor=bbox_to_anchor,
-          ncol=3, fancybox=True, shadow=False, prop={'size': legend_size}, frameon=False)
         
     return ax

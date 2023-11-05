@@ -2,11 +2,10 @@ import torch
 import os
 import numpy as np
 import argparse
-import pandas as pd
 import pprint
 import shutil
 from tree_learn.dataset import TreeDataset
-from tree_learn.model import TreeLearn
+from tree_learn.model import TreeLearn, Classifier
 from tree_learn.util import (build_dataloader, get_root_logger, load_checkpoint, ensemble, 
                              get_coords_within_shape, get_hull_buffer, get_hull, get_cluster_means,
                              propagate_preds, save_treewise, load_data, save, make_labels_consecutive, 
@@ -96,13 +95,12 @@ def run_treelearn_pipeline(config, config_path=None):
                                    global_filtering=config.global_filtering, local_filtering=config.local_filtering)
     tree_mask = instance_preds != UNDERSTORY_LABEL_IN_GROUPING
     instance_preds[tree_mask] = assign_remaining_points_nearest_neighbor(coords[tree_mask] + offset_predictions[tree_mask], instance_preds[tree_mask])
-    # instance_preds = merge_undecided_with_forest_cluster_space(coords, offset_predictions, instance_preds) # TODO maybe replace with assign_remaining_points_nearerst_neighbor
     
     # Run classifier on preliminary instances and add low confidence predictions to noise
     logger.info(f'{plot_name}: #################### Run classifier on preliminary instances ####################')
     for key in config.model_classifier:
         config.model[key] = config.model_classifier[key]
-    model_classifier = TreeLearn(**config.model).cuda()
+    model_classifier = Classifier(**config.model).cuda()
     load_checkpoint(config.pretrain_classifier, logger, model_classifier)
     tree_prediction_probs = get_classifier_preds(model_classifier, coords, feats, instance_preds, config)
 
@@ -110,22 +108,6 @@ def run_treelearn_pipeline(config, config_path=None):
     if config.save_cfg.save_pointwise:
         np.save(os.path.join(pointwise_dir, 'instance_preds.npy'), instance_preds)
         np.save(os.path.join(pointwise_dir, 'tree_prediction_probs.npy'), tree_prediction_probs.numpy())
-
-    # # TODO REMOVE
-    # # for faster inference, mainly debugging purposes
-    # pointwise_dir = os.path.join(plot_results_dir, 'pointwise_gt_and_preds')
-    # coords = np.load(os.path.join(pointwise_dir, "coords.npy"))
-    # semantic_prediction_logits = np.load(os.path.join(pointwise_dir, "semantic_prediction_logits.npy"))
-    # semantic_labels = np.load(os.path.join(pointwise_dir, "semantic_labels.npy"))
-    # offset_predictions = np.load(os.path.join(pointwise_dir, "offset_predictions.npy"))
-    # offset_labels = np.load(os.path.join(pointwise_dir, "offset_labels.npy"))
-    # instance_labels = np.load(os.path.join(pointwise_dir, "instance_labels.npy"))
-    # instance_preds = np.load(os.path.join(pointwise_dir, "instance_preds.npy"))
-    # feats = np.load(os.path.join(pointwise_dir, "feats.npy"))
-    # masks_inner_coords = np.load(os.path.join(pointwise_dir, "masks_inner_coords.npy"))
-    # instance_preds = np.load(os.path.join(pointwise_dir, "instance_preds.npy"))
-    # tree_prediction_probs = np.load(os.path.join(pointwise_dir, "tree_prediction_probs.npy"))
-    # hull_buffer_large = pd.read_pickle(os.path.join(pointwise_dir, 'hull_buffer_large.pkl'))
 
     invalid_instances = torch.where(tree_prediction_probs < PROB_THRESHOLD_VALID_INSTANCES)[0].numpy()
     instance_preds[np.isin(instance_preds, invalid_instances)] = NOISE_LABEL_IN_GROUPING
@@ -159,7 +141,6 @@ def run_treelearn_pipeline(config, config_path=None):
     if NOISE_LABEL_IN_GROUPING in instance_preds:
         tree_mask = instance_preds != UNDERSTORY_LABEL_IN_GROUPING
         instance_preds[tree_mask] = assign_remaining_points_nearest_neighbor(coords[tree_mask] + offset_predictions[tree_mask], instance_preds[tree_mask])
-        # instance_preds = merge_undecided_with_forest_cluster_space(coords, offset_predictions, instance_preds) # TODO maybe replace with assign_remaining_points_nearerst_neighbor
 
     # propagate predictions to original forest
     if config.save_cfg.return_type == 'original':
@@ -190,7 +171,7 @@ def run_treelearn_pipeline(config, config_path=None):
     os.makedirs(trees_dir, exist_ok=True)
     os.makedirs(full_dir, exist_ok=True)
     save(np.hstack([coords_to_return, preds_to_return.reshape(-1, 1)]), config.save_cfg.save_format, plot_name, full_dir)
-    convert_to_pcd(os.path.join(full_dir, f'{plot_name}.pcd'), np.hstack((coords_to_return, preds_to_return.reshape(-1, 1))), color=True)
+    convert_to_pcd(os.path.join(full_dir, f'{plot_name}.ply'), np.hstack((coords_to_return, preds_to_return.reshape(-1, 1))), color=True)
     if config.save_cfg.save_treewise:
         save_treewise(coords_to_return, preds_to_return, cluster_means_within_hull, insts_not_at_edge, config.save_cfg.save_format, trees_dir)
     return

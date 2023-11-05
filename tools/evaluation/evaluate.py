@@ -5,17 +5,19 @@ import shutil
 import os
 from tree_learn.util import (get_root_logger, make_labels_consecutive, get_config,
                              get_detections, get_detection_failures, filter_detection_stuff,
-                             evaluate_instance_segmentation, propagate_preds)
+                             evaluate_instance_segmentation, propagate_preds, load_data)
 
 FLOOR_CLASS_IN_INSTANCE_LABELS = 9999
-FLOOR_CLASS_IN_INSTANCE_PREDS = 9999
+FLOOR_CLASS_IN_INSTANCE_PREDS = -1
 MIN_IOU_FOR_MATCH = 0.2
-BENCHMARK_FOREST_PATH = '../datasets_simlink/data_trees/for_evaluation/benchmark_forest.npy'
-TREE_NUMS_USED_FOR_EVALUATION_PATH = '../datasets_simlink/data_trees/for_evaluation/treenums_used_for_evaluation.npy'
 
 
 def evaluate(config, config_path=None):
-    pred_forest_path = os.path.join(config.base_dir, 'pred_forest.npy')
+    if os.path.exists(os.path.join(config.base_dir, 'pred_forest.npy')):
+        pred_forest_path = os.path.join(config.base_dir, 'pred_forest.npy')
+    elif os.path.exists(os.path.join(config.base_dir, 'pred_forest.txt')):
+        pred_forest_path = os.path.join(config.base_dir, 'pred_forest.txt')
+        
     documentation_dir = os.path.join(config.base_dir, 'documentation')
     os.makedirs(documentation_dir, exist_ok=True)
 
@@ -24,17 +26,18 @@ def evaluate(config, config_path=None):
         shutil.copy(args.config, os.path.join(documentation_dir, os.path.basename(args.config)))
 
     # load pred and ground truth
-    benchmark_forest = np.load(BENCHMARK_FOREST_PATH)
+    benchmark_forest = np.load(config.benchmark_forest_path)
+    benchmark_forest = benchmark_forest[benchmark_forest[:, 3] != -100]
     benchmark_forest_coords = benchmark_forest[:, :3]
     benchmark_forest_instance_labels = benchmark_forest[:, 3]
 
-    pred_forest = np.load(pred_forest_path)
+    pred_forest = load_data(pred_forest_path)
     pred_forest_coords = pred_forest[:, :3]
     instance_preds = pred_forest[:, 3].astype('int')
 
     # propagate instance predictions to benchmark pointcloud
     logger.info('propagating predictions to coords of benchmark...')
-    # instance_preds = propagate_preds(pred_forest_coords, instance_preds, benchmark_forest_coords, 5)
+    instance_preds = propagate_preds(pred_forest_coords, instance_preds, benchmark_forest_coords, 5)
 
     # make labels consecutive and get unique instance preds
     instance_preds[instance_preds != FLOOR_CLASS_IN_INSTANCE_PREDS] = make_labels_consecutive(instance_preds[instance_preds != FLOOR_CLASS_IN_INSTANCE_PREDS], start_num=0)
@@ -68,7 +71,7 @@ def evaluate(config, config_path=None):
     non_matched_preds_corresponding_gt = non_matched_preds_corresponding_gt[~mask_nan]
 
     # filter detections based on instances to evaluate in y > 0 and y <= 0
-    instances_to_evaluate = np.load(TREE_NUMS_USED_FOR_EVALUATION_PATH)
+    instances_to_evaluate = np.load(config.tree_nums_used_for_evaluation_path)
     filtered_result =  filter_detection_stuff(matched_gts, matched_preds, instances_to_evaluate)
     matched_gts, matched_preds = filtered_result
 

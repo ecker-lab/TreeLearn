@@ -172,7 +172,7 @@ def get_voxel_sizes(batch, config):
     # get voxel_sizes to use in forward
     if config.mode == 'pointwise':
         voxel_sizes = torch.ones((batch['batch_size'], 3)) * config.voxel_size
-    elif config.mode == 'classifier' or config.mode == "lnet":
+    elif config.mode == 'classifier':
         voxel_sizes = calculate_voxel_sizes(batch['coords'], batch['batch_ids'], config.n_voxels_in_each_direction)
     voxel_sizes = [row.tolist() for row in voxel_sizes]
     return voxel_sizes

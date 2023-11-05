@@ -67,3 +67,6 @@ dist/
 # large files
 work_dirs
 data
+
+# private folder
+private

@@ -1,4 +1,4 @@
 grouping:
-  npoint_thr: 100 # discard smaller clusters immediately
-  radius: 0.3 # grouping radius
-  tree_conf_thresh: 0.5
+  npoint_thr: 100 # After grouping, clusters containing less points than this are discarded immediately since they are deemed to small to be a tree
+  radius: 0.3 # grouping radius of offset-shifted coordinates
+  tree_conf_thresh: 0.5 # minimum confidence (with regard to semantic prediction) for a point to be predicted as belonging to trees

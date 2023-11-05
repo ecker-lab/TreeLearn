@@ -269,8 +269,6 @@ def evaluate_z_partition(instance_preds, instance_labels, matched_gts, matched_p
             regularized_max = tree_coords[:, 2][sorted_inds[-5]]
             coords_temp_z = coords_temp_z / (regularized_max - np.min(tree_coords[:, -1]))
 
-            # coords_z = coords_z / regularized_max
-
         # get precision, recall and F1-score vertical
         for i in range(len(intvls) - 1):
             ind_gte_min = coords_temp_z >= intvls[i]
