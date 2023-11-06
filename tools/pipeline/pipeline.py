@@ -82,8 +82,9 @@ def run_treelearn_pipeline(config, config_path=None):
         np.save(os.path.join(pointwise_dir, 'semantic_labels.npy'), semantic_labels)
         np.save(os.path.join(pointwise_dir, 'instance_labels.npy'), instance_labels)
         np.save(os.path.join(pointwise_dir, 'feats.npy'), feats)
-        np.save(os.path.join(pointwise_dir, 'masks_inner_coords.npy'), masks_inner_coords)
-        hull_buffer_large.to_pickle(os.path.join(pointwise_dir, 'hull_buffer_large.pkl'))
+        if config.shape_cfg.outer_remove:
+            np.save(os.path.join(pointwise_dir, 'masks_inner_coords.npy'), masks_inner_coords)
+            hull_buffer_large.to_pickle(os.path.join(pointwise_dir, 'hull_buffer_large.pkl'))
 
     # if only pointwise predictions are to be generated, terminate here
     if config.save_cfg.only_pointwise:
