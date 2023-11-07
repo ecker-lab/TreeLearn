@@ -12,7 +12,7 @@ model:
   spatial_shape: [500, 500, 1000]
 
 grouping:
-  radius: 0.6
+  radius: 0.2
 
 ############ non-default args
 forest_path: '../datasets_simlink/data_trees/test/forests/L1W.npy' # path to forest point cloud to be segmented
