@@ -15,6 +15,10 @@ For a quick demo of the capabilities of TreeLearn without any manual setup, we p
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
+## Limitations
+
+Please note that our models have been trained on tls/mls data of forests dominated by beech. Initial results for point clouds obtained from other forest types or laser scanning methods suggest that the segmentation performance decreases substantially in this case. We expect that for a good performance on e.g. uav data and other forest types, finetuning the models is necessary. We are currently working towards including more powerful models that have been trained on a broader data basis.
+
 ## Setup
 
 To set up the environment we recommend Conda. If Conda is set up and activated, run the following:
