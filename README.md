@@ -1,3 +1,6 @@
+##
+**This repository is currently undergoing major revisions with the goal of simplifying the method and providing models that are more robust to different forest types and laser scanning characteristics. We recommend to not use the repository in its current version.**
+
 # TreeLearn: A Comprehensive Deep Learning Method for Segmenting Individual Trees from Forest Point Cloud
 
 ![Architecture](./method.png)
@@ -17,7 +20,7 @@ For a quick demo of the capabilities of TreeLearn without any manual setup, we p
 
 ## Limitations
 
-Please note that our models have been trained on tls/mls data of forests dominated by beech. Initial results for point clouds obtained from other forest types or laser scanning methods suggest that the segmentation performance decreases substantially in this case. We expect that for a good performance on e.g. uav data and other forest types, finetuning the models is necessary. We are currently working towards including more powerful models that have been trained on a broader data basis. **The repository will be updated very soon with simplifications of the method and a broader training data basis included.**
+Please note that our models have been trained on tls/mls data of forests dominated by beech. Initial results for point clouds obtained from other forest types or laser scanning methods suggest that the segmentation performance decreases substantially in this case. We expect that for a good performance on e.g. uav data and other forest types, finetuning the models is necessary. We are currently working towards including more powerful models that have been trained on a broader data basis.
 
 ## Setup
 
