@@ -39,10 +39,10 @@ To download the data, we recommend using the script ``tree_learn/util/download.p
 
 | Data        | Download                                             | 
 | ----------- | :----------------------------------------------------------- |
-| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark_dataset``` | 
-| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark_dataset``` | 
-| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/automatically_segmented``` | 
-| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/automatically_segmented``` |
+| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark``` | 
+| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark``` | 
+| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/train/forests``` | 
+| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/train/forests``` |
 | Model checkpoints   | ```python tree_learn/util/download.py --dataset_name checkpoints --root_folder data/checkpoints``` | 
 | Extra files   | ```python tree_learn/util/download.py --dataset_name extra --root_folder data/extra``` | 13 GB        |
 
