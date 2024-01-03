@@ -1,6 +1,7 @@
-base_dir: '../datasets_simlink/data_trees/eval_folder' # path to segmentation results to be evaluated
-benchmark_forest_path: '../datasets_simlink/data_trees/for_evaluation/benchmark_forest.npy' # path to ground truth benchmark dataset
-tree_nums_used_for_evaluation_path: '../datasets_simlink/data_trees/for_evaluation/treenums_used_for_evaluation.npy' # path to numpy array consisting of all tree numbers to be taken into account for evaluation
+pred_forest_path: 'data/pipeline/L1W/results/full_forest/L1W.laz' # path to predicted forest
+benchmark_forest_path: 'data/benchmark/L1W_voxelized01.laz' # path to ground truth benchmark dataset
+tree_nums_used_for_evaluation_path: 'data/extra/evaluated_trees.txt' # path to txt file consisting of all tree numbers to be taken into account for evaluation
+min_iou_for_match: 0.2 # minimumn pointwise iou between predicted and ground truth tree for hungarian matching
 
 partitions:
   xy_partition_relative: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] # radial dvision of each tree into segments (see paper for details)

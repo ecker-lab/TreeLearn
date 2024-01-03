@@ -1,13 +1,13 @@
 sample_generation:
   voxel_size: 0.1 # downsampling of input point cloud so that there is only one point left within a cube of size voxel_size x voxel_size x voxel_size
-  search_radius_features: ~ # search radius to compute local geometry features of a point (not used in the paper), set to ~ if no features should be calculated
+  search_radius_features: 0.4 # search radius to compute local geometry features of a point (in the paper, only verticality feature is used)
   inner_edge: 8 # only needed or tile generation and not for random crops. Designates the inner area to be used for making predictions
-  outer_edge: 11 # only needed or tile generation and not for random crops. Designates the outer area which is used as context
+  outer_edge: 13.5 # only needed or tile generation and not for random crops. Designates the outer area which is used as context
   stride: 0.5 # only needed or tile generation and not for random crops. Designates the stride of the inner square. If set to 1, the tiles are generated without overlap. Smaller numbers lead to overlap.
 
   # sample generator args
   sample_generator: # arguments for statistical and neighbor based filtering of point cloud. For details: http://www.open3d.org/docs/latest/tutorial/Advanced/pointcloud_outlier_removal.html
     n_neigh_sor: 2
     multiplier_sor: 1
-    rad: 0.2086
-    npoints_rad: 5
+    rad: ~ # usage of this filter is deprecated
+    npoints_rad: ~ # usage of this filter is deprecated

@@ -4,33 +4,25 @@ default_args: ["configs/_modular/sample_generation.yaml", "configs/_modular/mode
 
 ############ modification of default args
 sample_generation:
+  search_radius_features: 0.4
   inner_edge: 8
-  outer_edge: 11
+  outer_edge: 13.5
   stride: 0.5
+
+grouping:
+  tau_group: 0.15
 
 model:
   spatial_shape: [500, 500, 1000]
 
-grouping:
-  radius: 0.2
-
 ############ non-default args
-forest_path: '../datasets_simlink/data_trees/test/forests/L1W.npy' # path to forest point cloud to be segmented
-pretrain_pointwise: 'work_dirs/finetune_pointwise_all_data/finetuned_checkpoint_pointwise_prediction.pth' # path to trained network parameters for offset and semantic prediction
-pretrain_classifier: 'work_dirs/train_classifier_80e_finetuned/finetuned_checkpoint_classifier.pth' # path to trained classifier network parameters
+# forest_path: 'data/pipeline/L1W/forest/L1W.laz' # path to forest point cloud to be segmented (las, npy, npz or txt)
+# pretrain: 'data/model_weights/model_weights_diverse_training_data.pth' # path to trained network parameters for offset and semantic prediction
+forest_path: '/usr/users/henrich1/datasets_simlink/data_trees/pipeline_res/stechlin/forest/Stechlin_Winter.npy' # path to forest point cloud to be segmented (las, npy, npz or txt) # TODO
+# forest_path: '/usr/users/henrich1/datasets_simlink/data_trees/pipeline_res/plot7/forest/plot7.npy' # path to forest point cloud to be segmented (las, npy, npz or txt) # TODO
+pretrain: '/usr/users/henrich1/TreeLearn/work_dirs/train/epoch_1180.pth' # path to trained network parameters for offset and semantic prediction # TODO
 fp16: True # using half precision for network prediction
-
 tile_generation: True # whether to generate tiles for the forest point cloud to be segmented. If you re-run the pipeline multiple times for the same point cloud, this can be set to False after the first time.
-global_filtering: True # whether to use global filtering before grouping points into individual trees (default True)
-local_filtering: False # whether to use local filtering before grouping points into individual trees (default False)
-
-model_classifier: # see description of model config in _modular folder
-  mode: 'classifier'
-  use_feats: True
-  dim_feat: 32
-  num_blocks: 3
-  max_num_points_per_voxel: 100
-  spatial_shape: ~
 
 dataloader:
   batch_size: 1
@@ -38,12 +30,11 @@ dataloader:
 
 shape_cfg:
   alpha: 0 # alpha value in hull calculation to get xy outline of forest point cloud. 0 leads to convex hull. alpha=0.6 nice for point clouds that are non-convex in the xy plane.
-  outer_remove: 11 # When returning the segmentation result, crop outer_remove meters at the edges of the input point cloud. This is recommended since edge predictions are worse because they lack context for prediction.
+  outer_remove: 13.5 # When returning the segmentation result, crop outer_remove meters at the edges of the input point cloud. This is recommended since edge predictions are worse because they lack context for prediction.
   buffer_size_to_determine_edge_trees: 0.3 # determine which trees are completely within the segment. This is used to return different categories of trees (e.g. completely vs. partly within cropped result).
 
 save_cfg:
-  only_pointwise: False # Only save pointwise results, not predicted trees
-  save_pointwise: True # save pointwise results but also predicted trees
-  save_treewise: True # save predicted trees individually (if set to False, only complete forest is returned with tree labels and no individual files for trees)
-  return_type: "voxelized" # returns predictions on either the "voxelized", "voxelized_and_denoised" or "original" point cloud. Takes longer if "original" is selected since predictions must be propagated to original.
-  save_format: 'npy' # save format for predicted understory and trees (npy, txt or ply); complete forest is always additionally output as ply for fast visualization
+  save_formats: ['laz', 'npz'] # save formats for predicted forest (laz, las, npz, npy or txt)
+  save_treewise: True # additionally save predicted trees individually as las files
+  save_pointwise: True # additionally save pointwise results as numpy arrays (offset predictions, semantic predictions, etc.)
+  return_type: "voxelized" # returns predictions on either the "voxelized_and_filtered", "voxelized" or "original" point cloud. Takes longer if "original" is selected since predictions must be propagated to original input points.

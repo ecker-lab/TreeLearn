@@ -1,0 +1,14 @@
+# default_args is used to include configs from the _modular folder into this config. This ensures a modular way of combining different config files.
+default_args: ["configs/_modular/sample_generation.yaml"]
+
+
+base_dir: 'data/train' # base dir that contains a folder named "forests" which contains the forest point clouds for which training samples are to be generated
+
+# further args needed for random crop generation (mostly technical details that can be left unchanged)
+occupancy_res: 1 # for each forest point cloud an xy-occupancy map is created to determine the extensions of the given forest. occupancy_res x occupancy_res is the resolution of the occupancy map in meters
+n_points_to_calculate_occupancy: 100000 # subsample forest point cloud to n_points_to_calculate_occupancy for occupancy calculation to save compute resources
+min_percent_occupied_fill: 0.9 # regularize occupancy map by considering a square on the map as occupied if min_percent_occupied_fill of its neighboring squares are occupied
+how_far_fill: 9 # number of neighbors in x- and y-direction to take into account for resularization of occupancy map
+min_percent_occupied_choose: 0.45 # after randomly selecting crops, only choose those crops that have an overlap of at least min_percent_occupied_choose with the occupancy map. This prevents selecting empty samples.
+n_samples_total: 25000 # number of samples (crops) to generate
+chunk_size: 35 # chunk_size x chunk_size is the xy extension of a crop in meters. In the paper, 30 m was used but it can be increased if the forest consists of very large trees. However this increases memory consumption during training.

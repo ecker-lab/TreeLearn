@@ -1,5 +1,4 @@
 dataset_test:
-  training: False # True if dataset used for training; False if used for testing
-  data_root: '../datasets_simlink/data_trees/validation_data/tiles' # folder where tiles/crops for training or testing are located
-  inner_square_edge_length: 8 # Length of inner square to be used for training or testing. E.g. if tiles/crops are 30x30, this indicates that only inner 8x8 is taken into account
-  use_tree_height_in_offset: True # If True the offset vector points towards x, y coordinate of tree base and z coordinate of the highest point of tree. If False, it points towards x, y and z coordinate of tree base
+  training: False # True if dataset used for training; False if used for validation
+  data_root: 'data/val/tiles/npz' # folder where tiles for model validation are located
+  inner_square_edge_length: 8 # Length of inner square to be used for validation. E.g. if tiles are 30mx30m, this indicates that only inner 8x8 is taken into account

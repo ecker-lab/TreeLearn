@@ -1,0 +1,40 @@
+# default_args is used to include configs from the _modular folder into this config. This ensures a modular way of combining different config files.
+# Individual entries of the loaded default args can be changed by simply redefining them as is done below under 'modification of default args'
+default_args: ["configs/_modular/model.yaml", "configs/_modular/dataset_train.yaml", "configs/_modular/dataset_test.yaml"]
+
+############ modification default args
+model:
+  spatial_shape: [500, 500, 1000]
+
+############ non-default args
+dataloader:
+  train:
+    batch_size: 2
+    num_workers: 2
+  test:
+    batch_size: 1
+    num_workers: 1
+
+optimizer:
+  type: 'AdamW'
+  lr: 0.002
+  weight_decay: 0.001
+
+scheduler: # learning rate scheduler arguments (see https://timm.fast.ai/schedulers for details)
+  t_initial: 1300
+  lr_min: 0.0001
+  cycle_decay: 1
+  warmup_lr_init: 0.00001
+  warmup_t: 50
+  cycle_limit: 1
+  t_in_epochs: True
+
+epochs: 1400 # number of epochs to train
+examples_per_epoch: 500 # number of crops to use per epoch
+fp16: True # using half precision for network prediction
+pretrain: 'data/model_weights/hais_ckpt_spconv2.pth' # path to pretrained network parameters, set to ~ if not using pretrain
+grad_norm_clip: True # gradient clipping to avoid excessive gradient magnitude
+
+# validation args
+save_frequency: 20 # save frequency of state dict
+validation_frequency: 20 # validation frequency

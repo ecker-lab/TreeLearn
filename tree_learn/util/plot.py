@@ -1,17 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly_express as px
-import pandas as pd
-import plotly.io as pio
 import math
 from mpl_toolkits.mplot3d import Axes3D
 import math
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.cm import hsv
-from matplotlib import cm
 
-
+###########################################################################
+######################### some plotting functionality that might be helpful
+###########################################################################
 
 def get_ptcloud_img(ptcloud,roll=0,pitch=0, point_size=1, cmap=None, savepath=None, xlims=None, ylims=None, ax=None):
     if ax is None:
@@ -155,83 +153,6 @@ def generate_colormap(number_of_distinct_colors: int = 80):
             initial_cm[lower_half + j * number_of_shades: lower_half + (j + 1) * number_of_shades, i] += modifier
 
     return ListedColormap(initial_cm)
-
-def explore(cloud, subset=100):
-    cloud = cloud[::subset]
-    import pptk
-    # define a color palette
-    np.random.seed(3)
-    n_color_palette = len(np.unique(cloud[:, 3]))
-    color_palette = pptk.rand(n_color_palette, 3)
-
-    # define how labels get mapped to color palette
-    color_palette_mapping = {j: i for i, j in enumerate(np.sort(np.unique(cloud[:, 3])))}
-
-    color_palette[-1] = [0,0,0]
-
-    # define color array by using label and color_palette
-    num_drawpoints = len(cloud)
-    colors = np.empty((num_drawpoints, 3))
-
-    for i in range(num_drawpoints):
-        ind = int(cloud[i][-1])
-        colors[i] = color_palette[color_palette_mapping[ind]]
-
-
-    v = pptk.viewer(cloud[:, :-1])
-    v.attributes(colors)
-    v.set(point_size=0.1)
-    v.set(lookat=[0, 0, 0])
-
-
-def explore_plotly(coords, col=None, shift=None, size=None, width=800, height=800, show=True, 
-                   write=False, savename=None, subset=None, renderer="jupyterlab", range_x=None, 
-                   range_y=None, range_z=None, color_continuous=False):
-    color_discrete_sequence = ["white", "orange", "yellow", "lime", "green", "cyan", "blue", "purple", "magenta", 
-                               "grey", "maroon", "brown", "teal", "olive", "red", "navy", "pink", "beige",
-                               "black", "DarkCyan", "DarkGoldenRod", "DarkKhaki", "DarkRed", "Gainsboro",
-                               "LightBlue", "PaleGreen", "Salmon", "SandyBrown", "SteelBlue", "Thistle", "YellowGreen"]
-    pio.renderers.default = renderer
-
-    if type(coords) == str:
-        coords = np.load(coords)
-
-    coords = coords[::subset]
-
-    if coords.shape[1] == 4 and color_continuous == False:
-        df = pd.DataFrame(data=zip(coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3].astype("str")), columns=["x", "y", "z", "col"])
-    elif coords.shape[1] == 4 and color_continuous == True:
-        df = pd.DataFrame(data=zip(coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3]), columns=["x", "y", "z", "col"])
-    else:
-        if col is None and shift is None:
-            df = pd.DataFrame(data=coords, columns=["x", "y", "z"])
-        elif (not col is None) and shift is None:
-            df = pd.DataFrame(data=zip(coords[:, 0], coords[:, 1], coords[:, 2], col.astype("str")), columns=["x", "y", "z", "col"])
-        elif (col is None) and (shift is not None):
-            df = pd.DataFrame(data=zip(coords[:, 0] + shift[:, 0], coords[:, 1] + shift[:, 1], coords[:, 2] + shift[:, 2]), columns=["x", "y", "z"])
-        else:
-            df = pd.DataFrame(data=zip(coords[:, 0] + shift[:, 0], coords[:, 1] + shift[:, 1], coords[:, 2] +  + shift[:, 2], col.astype("str")), columns=["x", "y", "z", "col"])
-
-    if size == None:
-        size = pd.DataFrame(data=np.ones(len(df)), columns=['size'])
-    else:
-        size = pd.DataFrame(data=size, columns=['size'])
-
-    df = pd.concat([df, size], axis=1)
-    
-    fig = px.scatter_3d(df, x='x', y='y', z='z', color="col" if ((not col is None) or coords.shape[1] == 4) else None, size="size"\
-                            ,opacity=0, template="plotly_dark", size_max=6, width=width, height=height, color_discrete_sequence=color_discrete_sequence, range_x=range_x, range_y=range_y, range_z=range_z)
-
-
-    fig.update_layout(paper_bgcolor='rgba(50,50,50,50)', plot_bgcolor='rgba(0,0,0,0)')
-    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
-    fig.update_layout(title_text='Your title', title_x=0.5)
-    fig.update_traces(marker=dict(line=dict(width=4, color='Black')), selector=dict(mode='markers'))
-
-    if show:
-        fig.show()
-    if write:
-        fig.write_html(savename + ".html")
 
 
 def get_centers(instance_labels, offset_labels, coords_float):

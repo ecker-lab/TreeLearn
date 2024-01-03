@@ -1,1 +1,1 @@
-from .tree_learn import TreeLearn, Classifier
+from .tree_learn import TreeLearn

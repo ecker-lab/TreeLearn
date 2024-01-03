@@ -4,37 +4,75 @@ import torch
 import open3d as o3d
 from jakteristics import compute_features as compute_features_jakteristics
 import pandas as pd
+import json
+import laspy
+from tqdm import tqdm
+
+INSTANCE_LABEL_IGNORE_IN_RAW_DATA = -1 # label for unlabeled in raw data
+NON_TREE_CLASS_IN_RAW_DATA = 0 # label for non-trees in raw data
 
 
-# load data and create dummy instance label if not provided
 def load_data(path):
-    if path[-3:] == 'npy':
+    assert path.endswith('npy') or path.endswith('npz') or path.endswith('las') or path.endswith('laz') or path.endswith('txt')
+    if path.endswith('npy'):
         data = np.load(path)
-    elif path[-3:] == 'txt':
+    elif path.endswith('npz'):
+        data = np.load(path)
+        assert 'points' in data
+        if 'points' in data and not 'labels' in data:
+            data = data['points']
+        else:
+            data = np.hstack((data["points"], data["labels"][:,np.newaxis]))
+    elif path.endswith('.las') or path.endswith('.laz'):
+        las_file = laspy.read(path)
+        if hasattr(las_file, 'treeID') and hasattr(las_file, 'classification'):
+            treeID = np.array(las_file.treeID)
+            classes = np.array(las_file.classification)
+
+            tree_mask = treeID != 0
+            non_tree_mask = np.isin(classes, [1, 2]) # terrain or vegetation according to For-Instance labeling convention (https://zenodo.org/records/8287792)
+            unlabeled_mask = np.logical_not(tree_mask) & np.logical_not(non_tree_mask)
+            assert (tree_mask & non_tree_mask & unlabeled_mask).sum() == 0
+
+        points = np.vstack((las_file.x, las_file.y, las_file.z)).T
+        points = points - las_file.header.offset
+        labels = np.ones(len(points))
+        labels[tree_mask] = treeID[tree_mask]
+        labels[non_tree_mask] = NON_TREE_CLASS_IN_RAW_DATA
+        labels[unlabeled_mask] = INSTANCE_LABEL_IGNORE_IN_RAW_DATA
+        data = np.hstack([points, labels[:,np.newaxis]])
+    elif path.endswith('txt'):
         data = pd.read_csv(path, delimiter=' ').to_numpy()
+    
     assert data.shape[1] == 3 or data.shape[1] == 4
     if data.shape[1] == 3:
-        data = np.hstack([data, -100 * np.ones(len(data)).reshape(-1, 1)])
+        data = np.hstack([data, INSTANCE_LABEL_IGNORE_IN_RAW_DATA * np.ones(len(data))[:,np.newaxis]])
     return data
 
 
 def voxelize(data, voxel_size):
     points = data[:, :3]
-    other = data[:, 3:]
+    if data.shape[1] >= 4:
+        other = data[:, 3:]
+
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
     bound = np.max(np.abs(points)) + 100
     min_bound, max_bound = np.array([-bound, -bound, -bound]), np.array([bound, bound, bound])
     downpcd, _, idx = pcd.voxel_down_sample_and_trace(voxel_size, min_bound, max_bound)
-    idx = [item[0] for item in idx]
-    other = other[idx]
-    data = np.hstack((np.asarray(downpcd.points), other))
+
+    if data.shape[1] >= 4:
+        idx = [item[0] for item in idx]
+        other = other[idx]
+        data = np.hstack((np.asarray(downpcd.points), other))
+    else:
+        data = np.asarray(downpcd.points)
     return data
 
 
-def compute_features(points, search_radius=0.35, num_threads=4):
+def compute_features(points, search_radius=0.35, feature_names=['verticality'], num_threads=4):
     assert points.shape[1] == 3
-    features = compute_features_jakteristics(points, search_radius=search_radius, num_threads=num_threads, feature_names=["planarity", "linearity", "sphericity", "verticality"])
+    features = compute_features_jakteristics(points, search_radius=search_radius, num_threads=num_threads, feature_names=feature_names)
     features = replace_nanfeatures(features)
     features = features.astype(np.float32)
     return features
@@ -61,16 +99,20 @@ class SampleGenerator:
     def __init__(self, plot_path, features_path, save_dir, n_neigh_sor, 
             multiplier_sor, rad, npoints_rad):
 
-        # plot specific attributes
-        self.plot_name = os.path.basename(plot_path).replace('.npy', '')
         data = np.load(plot_path)
-        self.feats = np.load(features_path) if features_path is not None else None
+        data = np.hstack((data["points"], data["labels"][:,np.newaxis]))
+        self.feats = np.load(features_path)
+        self.feats = self.feats['features']
+        self.plot_name = os.path.basename(plot_path)[:-4]
         self.points = data[:, :3]
         self.label = data[:, 3]
         self.x_range, self.y_range = get_ranges(self.points)
         self.x_range = self.x_range[0]
         self.y_range = self.y_range[0]
-        self.save_dir = save_dir
+        self.save_dir_data = os.path.join(save_dir, 'npz')
+        self.save_dir_meta_data = os.path.join(save_dir, 'json')
+        os.makedirs(self.save_dir_data, exist_ok=True)
+        os.makedirs(self.save_dir_meta_data, exist_ok=True)
 
         # generic generation attributes
         self.n_neigh_sor = n_neigh_sor
@@ -80,7 +122,7 @@ class SampleGenerator:
 
 
     # get occupancy grid
-    def get_occupancy_grid(self, occupancy_path, occupancy_res, n_points_to_calculate_occupancy, how_far_fill, min_percent_occupied_fill):
+    def get_occupancy_grid(self, occupancy_path, occupancy_res, n_points_to_calculate_occupancy, how_far_fill, min_percent_occupied_fill, ignore_for_occupancy):
         self.occupancy_res = occupancy_res
         self.how_far_fill = how_far_fill
         self.min_percent_occupied_fill = min_percent_occupied_fill
@@ -88,6 +130,7 @@ class SampleGenerator:
 
         if os.path.exists(occupancy_path):
             occupancy_grid = np.load(occupancy_path)
+            occupancy_grid = occupancy_grid['occupancy_grid']
             self.occupancy_grid = occupancy_grid
             return
 
@@ -96,8 +139,13 @@ class SampleGenerator:
         y_steps = np.arange(self.y_range[0], self.y_range[1]+1e-3, step=y_res)
         x_steps = np.arange(self.x_range[0], self.x_range[1]+1e-3, step=x_res)
         occupancy_grid = np.ones((x_dim, y_dim, 3)) * 10
-        idx = np.random.randint(0, len(self.points), size=n)
-        points = self.points[idx]
+
+        mask_valid_points = self.label != ignore_for_occupancy
+        points = self.points[mask_valid_points]
+        idx = np.random.randint(0, len(points), size=n)
+        points = points[idx]
+
+
         x_coord, y_coord = points[:,0], points[:,1]
 
         for i in range(x_dim):
@@ -107,7 +155,8 @@ class SampleGenerator:
                 occupancy_grid[i,j, 0:2] = [np.mean(x_steps[i:i+2]), np.mean(y_steps[j:j+2])]
 
         occupancy_grid = fill_holes(occupancy_grid, how_far_fill, min_percent_occupied_fill)
-        np.save(occupancy_path, occupancy_grid)
+
+        np.savez_compressed(occupancy_path, occupancy_grid=occupancy_grid)
         self.occupancy_grid = occupancy_grid
         return
 
@@ -157,7 +206,6 @@ class SampleGenerator:
         A_invs = [invert_rotate_and_shift(A[:, :2], rotation_angle, center) for A, rotation_angle, center in zip(As, self.rotation_angles, self.centers)]
 
         # Get occupancy values for all grid elements that have infinity norm <= size/2
-
         inds_within_proposal = [np.linalg.norm(A_inv, ord=np.inf, axis=1) <= self.chunk_size/2 for A_inv in A_invs]
         occupancies = [A[:, -1][ind_within_proposal] for A, ind_within_proposal in zip(As, inds_within_proposal)]
 
@@ -172,11 +220,10 @@ class SampleGenerator:
     
 
     # save
-    def save(self):
+    def save(self, compressed=False):
         # get points
         points = np.hstack((self.points, self.label.reshape(-1, 1)))
-        if self.feats is not None:
-            points = np.hstack([points, self.feats])
+        points = np.hstack([points, self.feats])
 
         # filter valid candidates
         vertices = self.vertices[self.filter]
@@ -184,13 +231,16 @@ class SampleGenerator:
         centers = self.centers[self.filter]
 
         # only take specified amount of candidates
-        inds = np.random.choice(range(len(vertices)), self.n_samples_plot, replace=False)
+        if self.n_samples_plot <= len(vertices):
+            inds = np.random.choice(range(len(vertices)), self.n_samples_plot, replace=False)
+        else:
+            inds = np.random.choice(range(len(vertices)), len(vertices), replace=False)
         vertices = vertices[inds]
         rotation_angles = rotation_angles[inds]
         centers = centers[inds]
 
         # make sure that computational burden is not too high by splitting up the saving process
-        n_splits = len(vertices) // 250 if len(vertices) // 250 > 0 else 1
+        n_splits = len(vertices) // 10 if len(vertices) // 10 > 0 else 1
         vertices_list = np.array_split(vertices, n_splits, 0)
         rotation_angles_list = np.array_split(rotation_angles, n_splits, 0)
         centers_list = np.array_split(centers, n_splits, 0)
@@ -213,11 +263,13 @@ class SampleGenerator:
             for A_subset, center, rotation_angle in zip(A_subsets, centers, rotation_angles):
 
                 # denoise
-                sor_filter_idx = sor_filter(A_subset, n_neigh_sor=self.n_neigh_sor, multiplier_sor=self.multiplier_sor)
-                A_subset = A_subset[sor_filter_idx]
+                if self.n_neigh_sor is not None and self.multiplier_sor is not None:
+                    sor_filter_idx = sor_filter(A_subset, n_neigh_sor=self.n_neigh_sor, multiplier_sor=self.multiplier_sor)
+                    A_subset = A_subset[sor_filter_idx]
 
-                rad_filter_idx = rad_filter(A_subset, rad=self.rad, npoints_rad=self.npoints_rad)
-                A_subset = A_subset[rad_filter_idx]
+                if self.rad is not None and self.npoints_rad is not None:
+                    rad_filter_idx = rad_filter(A_subset, rad=self.rad, npoints_rad=self.npoints_rad)
+                    A_subset = A_subset[rad_filter_idx]
 
                 A_subset = A_subset.astype(np.float32)
 
@@ -238,24 +290,32 @@ class SampleGenerator:
                 # data
                 points_save = A_subset[:, :3]
                 instance_label_save = A_subset[:, 3]
-                feat_save = A_subset[:, 4:] if self.feats is not None else None
+                feat_save = A_subset[:, 4:]
+                center = np.array([center[0], center[1], 0])
 
-                # save meta data and data as dict
-                res = dict()
-                res['meta_data'] = meta_data
-                res['points'] = points_save
-                res['feat'] = feat_save
-                res['instance_label'] = instance_label_save.astype(np.int32)
-                res['center'] = center
+                data = dict()
+                data['points'] = points_save
+                data['feat'] = feat_save
+                data['instance_label'] = instance_label_save.astype(np.int32)
+                data['center'] = center
 
-                save_name = self.plot_name + str(chunk_counter) + '.pt'
-                save_path = os.path.join(self.save_dir, save_name)
-                torch.save(res, save_path)
+                # saving
+                save_name_data = self.plot_name + '_' + str(chunk_counter) + '.npz'
+                save_path_data = os.path.join(self.save_dir_data, save_name_data)
+                save_name_meta_data = self.plot_name + '_' + str(chunk_counter) + '.json'
+                save_path_meta_data = os.path.join(self.save_dir_meta_data, save_name_meta_data)
                 chunk_counter += 1
-        return
+
+                if compressed:
+                    np.savez_compressed(save_path_data, **data)
+                else:
+                    np.savez(save_path_data, **data)
+                with open(save_path_meta_data, 'w') as json_file:
+                    json.dump(meta_data, json_file)
 
 
-    def tile_generate_and_save(self, inner_edge, outer_edge, stride, plot_corners=None, logger=None):
+
+    def tile_generate_and_save(self, inner_edge, outer_edge, stride, compressed=False, plot_corners=None, logger=None):
         logger.info('defining plot corners')
         if plot_corners is not None:
             plot_corners = np.array(plot_corners)
@@ -312,8 +372,7 @@ class SampleGenerator:
 
         # add label and feats to points
         points = np.hstack((self.points, self.label.reshape(-1, 1)))
-        if self.feats is not None:
-            points = np.hstack([points, self.feats])
+        points = np.hstack([points, self.feats])
 
         # to cuda for faster performance
         points = torch.from_numpy(points).cuda()
@@ -356,30 +415,28 @@ class SampleGenerator:
         del chunks # free memory
         valid_inner_square_extension = np.array(valid_inner_square_extension).astype(np.float32)
 
+
         logger.info('center chunks')
         for i in range(len(valid_chunks)):
             chunk_center_x = np.round((valid_inner_square_extension[i][0] + valid_inner_square_extension[i][1]) / 2, 6)
             chunk_center_y = np.round((valid_inner_square_extension[i][2] + valid_inner_square_extension[i][3]) / 2, 6)
-            
-            if self.feats is not None:
-                center = np.concatenate([np.array([chunk_center_x, chunk_center_y, 0, 0]), np.zeros(self.feats.shape[1])]).reshape(1, -1)
-            else:
-                center = np.array([chunk_center_x, chunk_center_y, 0, 0]).reshape(1, -1)
-
+            center = np.concatenate([np.array([chunk_center_x, chunk_center_y, 0, 0]), np.zeros(self.feats.shape[1])]).reshape(1, -1)
             valid_chunks[i] = (torch.from_numpy(valid_chunks[i]).cuda() - torch.from_numpy(center).cuda()).cpu().numpy()
 
 
         logger.info('denoise')
-        for i, valid_chunk in enumerate(valid_chunks):
+        for i, valid_chunk in tqdm(enumerate(valid_chunks)):
 
             # denoise
-            sor_filter_idx = sor_filter(valid_chunk, n_neigh_sor=self.n_neigh_sor, multiplier_sor=self.multiplier_sor)
-            valid_chunk = valid_chunk[sor_filter_idx]
-            valid_chunks[i] = None # free memory
+            if self.n_neigh_sor is not None and self.multiplier_sor is not None:
+                sor_filter_idx = sor_filter(valid_chunk, n_neigh_sor=self.n_neigh_sor, multiplier_sor=self.multiplier_sor)
+                valid_chunk = valid_chunk[sor_filter_idx]
+                valid_chunks[i] = None # free memory
 
-
-            rad_filter_idx = rad_filter(valid_chunk, rad=self.rad, npoints_rad=self.npoints_rad)
-            valid_chunk = valid_chunk[rad_filter_idx]
+            if self.rad is not None and self.npoints_rad is not None:
+                rad_filter_idx = rad_filter(valid_chunk, rad=self.rad, npoints_rad=self.npoints_rad)
+                valid_chunk = valid_chunk[rad_filter_idx]
+                valid_chunks[i] = None # free memory
 
             valid_chunk = valid_chunk.astype(np.float32)
 
@@ -396,22 +453,29 @@ class SampleGenerator:
             # data
             points = valid_chunk[:, :3]
             instance_label = valid_chunk[:, 3]
-            feat = valid_chunk[:, 4:] if self.feats is not None else None
+            feat = valid_chunk[:, 4:]
             chunk_center_x = np.round((valid_inner_square_extension[i][0] + valid_inner_square_extension[i][1]) / 2, 6)
             chunk_center_y = np.round((valid_inner_square_extension[i][2] + valid_inner_square_extension[i][3]) / 2, 6)
             center = np.array([chunk_center_x, chunk_center_y, 0])
 
-            # save meta data and data as dict
-            res = dict()
-            res['meta_data'] = meta_data
-            res['points'] = points
-            res['instance_label'] = instance_label.astype(np.int32)
-            res['feat'] = feat
-            res['center'] = center
+            data = dict()
+            data['points'] = points
+            data['feat'] = feat
+            data['instance_label'] = instance_label.astype(np.int32)
+            data['center'] = center
             
-            save_name = self.plot_name + str(i) + '.pt'
-            save_path = os.path.join(self.save_dir, save_name)
-            torch.save(res, save_path)
+            # saving
+            save_name_data = self.plot_name + '_' + str(i) + '.npz'
+            save_path_data = os.path.join(self.save_dir_data, save_name_data)
+            save_name_meta_data = self.plot_name + '_' + str(i) + '.json'
+            save_path_meta_data = os.path.join(self.save_dir_meta_data, save_name_meta_data)
+
+            if compressed:
+                np.savez_compressed(save_path_data, **data)
+            else:  
+                np.savez(save_path_data, **data)
+            with open(save_path_meta_data, 'w') as json_file:
+                json.dump(meta_data, json_file)
         return
 
 
@@ -579,4 +643,4 @@ def align_square_with_axes(points, angle):
 
     points = points @ inv_rotation_matrix
     return points
-
+    

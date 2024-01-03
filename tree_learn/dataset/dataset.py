@@ -4,10 +4,10 @@ import torch
 import os
 from torch.utils.data import Dataset
 
-FLOOR_CLASS_IN_RAW_DATA = 9999
-UNDERSTORY_CLASS_IN_DATASET = 1
-TREE_CLASS_IN_DATASET = 0
-INSTANCE_LABEL_IGNORE = -100
+INSTANCE_LABEL_IGNORE_IN_RAW_DATA = -1 # label for unlabeled in raw data
+NON_TREE_CLASS_IN_RAW_DATA = 0 # label for non-trees in raw data
+NON_TREE_CLASS_IN_PYTORCH_DATASET = 1 # semantic label for non-tree in pytorch dataset
+TREE_CLASS_IN_PYTORCH_DATASET = 0 # semantic label for tree in pytorch dataset
 
 
 class TreeDataset(Dataset):
@@ -16,21 +16,15 @@ class TreeDataset(Dataset):
                  inner_square_edge_length,
                  training,
                  logger,
-                 data_augmentations=None,
-                 use_tree_height_in_offset=True):
+                 data_augmentations=None):
 
         self.data_paths = [os.path.join(data_root, path) for path in os.listdir(data_root)]
         self.inner_square_edge_length = inner_square_edge_length
         self.logger = logger
         self.training = training
         self.data_augmentations = data_augmentations
-        self.use_tree_height_in_offset = use_tree_height_in_offset
-        mode = 'train' if training else 'val'
+        mode = 'train' if training else 'test'
         self.logger.info(f'Load {mode} dataset: {len(self.data_paths)} scans')
-
-
-    def load(self, data_path):
-        return torch.load(data_path)
 
 
     def __len__(self):
@@ -38,34 +32,37 @@ class TreeDataset(Dataset):
 
 
     def __getitem__(self, index):
-        # load and restructure data
+        # load data
         data_path = self.data_paths[index]
-        data = self.load(data_path)
+        data = np.load(data_path)
         
         # get entries
         xyz = data['points']
-        feat = data['feat'] if data['feat'] is not None else np.ones((len(xyz), 4))
-        instance_label = data.get('instance_label', np.ones(len(xyz))) # dummy value if not in dict
+        input_feat = data['feat']
+        verticality = input_feat[:, -1] # verticality feature computed in last column of data['feat']
+
+        instance_label = data['instance_label']
         semantic_label = np.empty(len(instance_label))
-        semantic_label[instance_label == FLOOR_CLASS_IN_RAW_DATA] = UNDERSTORY_CLASS_IN_DATASET
-        semantic_label[instance_label != FLOOR_CLASS_IN_RAW_DATA] = TREE_CLASS_IN_DATASET
-        cls_label = data.get('cls_label', 1) # dummy value if not in dict
+        semantic_label[instance_label == NON_TREE_CLASS_IN_RAW_DATA] = NON_TREE_CLASS_IN_PYTORCH_DATASET
+        semantic_label[instance_label != NON_TREE_CLASS_IN_RAW_DATA] = TREE_CLASS_IN_PYTORCH_DATASET
 
-        if self.training:
-            mask_not_ignore = self.get_mask_not_ignore(instance_label)
-            center = np.ones_like(xyz) # dummy value in training
-        else:
-            mask_not_ignore = np.ones_like(instance_label).astype('bool') # dummy value in testing
-            center = np.ones_like(xyz) * data['center']
-        
+        # get masks for loss calculation
         mask_inner = self.get_mask_inner(xyz)
-        mask_off = mask_inner & mask_not_ignore & (semantic_label != UNDERSTORY_CLASS_IN_DATASET)
+        mask_not_ignore = self.get_mask_not_ignore(instance_label)
+        mask_off = mask_inner & mask_not_ignore & (semantic_label != NON_TREE_CLASS_IN_PYTORCH_DATASET)
         mask_sem = mask_inner & mask_not_ignore
+        
+        # get center of chunk (only for test)
+        if self.training:
+            center = np.ones_like(xyz) # dummy value in training (used for stitching tiles back together)
+        else:
+            center = np.ones_like(xyz) * data['center']
 
-        # data transforms; standard_xyz = only standard data transformations; scaled_xyz also scale
+        # transform data
         xyz = self.transform_train(xyz) if self.training else self.transform_test(xyz)
 
-        pt_offset_label = self.getOffset(xyz, instance_label, semantic_label)
+        # get offset
+        pt_offset_label = self.getOffset(xyz, instance_label, semantic_label, verticality)
 
         xyz = torch.from_numpy(xyz)
         instance_label = torch.from_numpy(instance_label)
@@ -74,14 +71,14 @@ class TreeDataset(Dataset):
         mask_off = torch.from_numpy(mask_off)
         mask_sem = torch.from_numpy(mask_sem)
         pt_offset_label = torch.from_numpy(pt_offset_label)
-        feat = torch.from_numpy(feat)
+        input_feat = torch.from_numpy(input_feat)
         center = torch.from_numpy(center)
 
-        return xyz, feat, instance_label, semantic_label, pt_offset_label, center, mask_inner, mask_off, mask_sem, cls_label
+        return xyz, input_feat, instance_label, semantic_label, pt_offset_label, center, mask_inner, mask_off, mask_sem
 
 
     def get_mask_not_ignore(self, instance_label):
-        mask_ignore = instance_label == INSTANCE_LABEL_IGNORE
+        mask_ignore = instance_label == INSTANCE_LABEL_IGNORE_IN_RAW_DATA
         mask_not_ignore = np.logical_not(mask_ignore)
         return mask_not_ignore
 
@@ -112,8 +109,9 @@ class TreeDataset(Dataset):
         return xyz
 
 
-    def getOffset(self, xyz, instance_label, semantic_label):
+    def getOffset(self, xyz, instance_label, semantic_label, verticality, verticality_thresh=0.6, target_z=3):
 
+        mask_vert = np.squeeze(verticality > verticality_thresh)
         position = np.ones_like(xyz, dtype=np.float32)
         instances = np.unique(instance_label)
 
@@ -121,15 +119,27 @@ class TreeDataset(Dataset):
             inst_idx = np.where(instance_label == instance)
             first_idx = inst_idx[0][0]
 
-            if semantic_label[first_idx] != UNDERSTORY_CLASS_IN_DATASET:
+            if semantic_label[first_idx] != NON_TREE_CLASS_IN_PYTORCH_DATASET:
                 tree_points = xyz[inst_idx]
-                min_z = np.min(tree_points[:, 2])
-                z_thresh = min_z + 0.30
-                lowest_points = tree_points[tree_points[:, 2] <= z_thresh]
-                position_instance = np.mean(lowest_points, axis=0)
-                if self.use_tree_height_in_offset:
-                    max_z = np.max(tree_points[:, 2])
-                    position_instance[2] = max_z
+                if len(tree_points[:, 2]) > 11:
+                    min_z = np.partition(tree_points[:, 2], 10)[10]
+                else:
+                    min_z = tree_points[:, 2].min()
+
+                tree_mask_vert = mask_vert[inst_idx]
+                tree_points = tree_points[tree_mask_vert]
+                
+                z_thresh_lower = min_z + target_z - 0.25
+                z_thresh_upper = min_z + target_z + 0.25
+                mask_thresh_lower = tree_points[:, 2] >= z_thresh_lower
+                mask_thresh_upper = tree_points[:, 2] <= z_thresh_upper
+
+                tree_points_of_interest = tree_points[mask_thresh_lower & mask_thresh_upper]
+                if len(tree_points_of_interest) > 0:
+                    position_instance = np.mean(tree_points_of_interest, axis=0)
+                else:
+                    position_instance = np.array([0, 0, 0])
+
                 position[inst_idx] = position_instance
 
         pt_offset_label = position - xyz
@@ -162,11 +172,10 @@ class TreeDataset(Dataset):
 
     def collate_fn(self, batch):
         xyzs = []
-        feats = []
+        input_feats = []
         batch_ids = []
         instance_labels = []
         semantic_labels = []
-        cls_labels = []
         pt_offset_labels = []
         centers = []
         masks_inner = []
@@ -178,15 +187,14 @@ class TreeDataset(Dataset):
 
 
         for data in batch:
-            xyz, feat, instance_label, semantic_label, pt_offset_label, center, mask_inner, mask_off, mask_sem, cls_label = data
+            xyz, input_feat, instance_label, semantic_label, pt_offset_label, center, mask_inner, mask_off, mask_sem = data
             total_points_num += len(xyz)
 
             xyzs.append(xyz)
-            feats.append(feat)
+            input_feats.append(input_feat)
             batch_ids.append(torch.ones(len(xyz))*batch_id)
             semantic_labels.append(semantic_label)
             instance_labels.append(instance_label)
-            cls_labels.append(cls_label)
             masks_inner.append(mask_inner)
             masks_off.append(mask_off)
             masks_sem.append(mask_sem)
@@ -199,11 +207,10 @@ class TreeDataset(Dataset):
             self.logger.info(f'batch is truncated from size {len(batch)} to {batch_id}')
 
         xyzs = torch.cat(xyzs, 0).to(torch.float32)
-        feats = torch.cat(feats, 0).to(torch.float32)
+        input_feats = torch.cat(input_feats, 0).to(torch.float32)
         batch_ids = torch.cat(batch_ids, 0).long()
         semantic_labels = torch.cat(semantic_labels, 0).long()
         instance_labels = torch.cat(instance_labels, 0).long()
-        cls_labels = torch.tensor(cls_labels).long()
         masks_inner = torch.cat(masks_inner, 0).bool()
         masks_off = torch.cat(masks_off, 0).bool()
         masks_sem = torch.cat(masks_sem, 0).bool()
@@ -213,11 +220,10 @@ class TreeDataset(Dataset):
 
         return {
             'coords': xyzs,
-            'feats': feats,
+            'input_feats': input_feats,
             'batch_ids': batch_ids,
             'semantic_labels': semantic_labels,
             'instance_labels': instance_labels,
-            'cls_labels': cls_labels,
             'masks_inner': masks_inner,
             'masks_off': masks_off,
             'masks_sem': masks_sem,

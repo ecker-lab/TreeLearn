@@ -1,5 +1,4 @@
 from collections import OrderedDict
-
 import spconv.pytorch as spconv
 import torch
 from spconv.pytorch.modules import SparseModule
@@ -162,38 +161,3 @@ class UBlock(nn.Module):
 # for standard configuration of n = 7, it follows that RF = 9 * 2^6 + 8 * (2^6 - 1) = 1080x1080x1080
 # for kernel size of 5 instead of 3 it follows for standard configuration that RF = 17 * 2^6 + 16 * (2^6 - 1)
 # for kernel size of 3 and n = 2, it follows that RF = 9 * 2^1 + 8 * (2^1 - 1) = 26
-
-
-class LBlock(nn.Module):
-    def __init__(self, nPlanes, norm_fn, block_reps, block, kernel_size, indice_key_id=1):
-        super().__init__()
-        blocks = {}
-
-        first_block = {
-            'block{}'.format(i):
-            block(nPlanes[0], nPlanes[0], norm_fn, kernel_size, indice_key=None)
-            for i in range(block_reps)
-        }
-        first_block = OrderedDict(first_block)
-        first_block = spconv.SparseSequential(first_block)
-        blocks[f"block{0}"] = first_block
-
-        for i in range(len(nPlanes) - 1):
-            resblocks = [block(nPlanes[i+1], nPlanes[i+1], norm_fn, kernel_size, indice_key=None) for _ in range(block_reps)]
-            
-            blocks[f"block{i+1}"] = spconv.SparseSequential(
-                norm_fn(nPlanes[i]), nn.ReLU(),
-                spconv.SparseConv3d(
-                    nPlanes[i],
-                    nPlanes[i+1],
-                    kernel_size=2,
-                    stride=2,
-                    bias=False,
-                 ),
-                 *resblocks)
-
-        self.blocks = spconv.SparseSequential(OrderedDict(blocks))
-
-    def forward(self, x):
-        output = self.blocks(x)
-        return output

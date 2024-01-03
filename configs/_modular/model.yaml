@@ -1,14 +1,12 @@
 model:
-  mode: 'pointwise' # determines network to be used. pointwise for offset and semantic prediction; classifier for classification into tree and fragment
   kernel_size: 3 # kernel size of convolution layers
   channels: 32 # channel size of first convolution layer
   num_blocks: 7 # number of blocks to be used in the Unet or Lnet
-  use_feats: False # whether to use precomputed features or not (default is False)
-  use_coords: False # whether to use the coordinates as features (default is False)
+  use_feats: False # whether to use precomputed features as network input or not (default is False)
+  use_coords: False # whether to use the coordinates as network input or not. Coords are redundant since relativ position defined by voxel grid (default is False)
   dim_coord: 3 # dimension of coordinates
-  dim_feat: 4 # dimension of precomputed features
-  max_num_points_per_voxel: 3 # maximum number of points within a voxel to use for feature averaging (cannot use all do to memory constraints)
+  dim_feat: 1 # dimension of precomputed features
+  max_num_points_per_voxel: 3 # maximum number of points within a voxel to use for feature averaging (the value of this does not matter that much)
   fixed_modules: [] # modules whose parameters are not updated during training
-  spatial_shape: ~ # spatial shape of the tiles/crops. Can be set to ~ during training but should be set to a high enough number to cover the voxel extensions of the largest tile
-  n_voxels_in_each_direction: 20 # used for mode==classifier to fit the input into a fixed shape of n_voxels_in_each_direction x n_voxels_in_each_direction x n_voxels_in_each_direction
-  voxel_size: 0.1 # used for mode==pointwise and determines the voxel size in m
+  spatial_shape: ~ # spatial shape of the tiles/crops. Can be set to ~ during training but should be set to a high enough number to cover the voxel extensions of the largest tile during inference
+  voxel_size: 0.1 # determines the voxel size in m

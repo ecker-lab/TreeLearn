@@ -138,7 +138,6 @@ def build_dataloader(dataset, batch_size=1, num_workers=1, training=True):
             drop_last=True,
             pin_memory=True)
     else:
-        # assert batch_size == 1
         return DataLoader(
             dataset,
             batch_size=batch_size,
@@ -151,48 +150,29 @@ def build_dataloader(dataset, batch_size=1, num_workers=1, training=True):
 
 
 @cuda_cast
-def point_wise_loss(semantic_prediction_logits, offset_predictions, semantic_labels,
-                    offset_labels):
+def point_wise_loss(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, n_points=None):
+
+    if n_points is not None and len(offset_predictions) >= n_points:
+        permuted_indices_sem = torch.randperm(len(semantic_prediction_logits))
+        permuted_indices_off = torch.randperm(len(offset_predictions))
+        ind_sem = permuted_indices_sem[:n_points]
+        ind_off = permuted_indices_off[:n_points]
+    else:
+        ind_sem = torch.arange(len(semantic_prediction_logits))
+        ind_off = torch.arange(len(offset_predictions))
 
     if len(semantic_prediction_logits) == 0:
         semantic_loss = 0 * semantic_labels.sum()
     else:
+        # semantic_loss
         semantic_loss = F.cross_entropy(
-            semantic_prediction_logits, semantic_labels, reduction='sum') / len(semantic_prediction_logits)
+            semantic_prediction_logits[ind_sem], semantic_labels[ind_sem], reduction='sum') / len(semantic_prediction_logits[ind_sem])
         
     if len(offset_predictions) == 0:
         offset_loss = 0 * offset_predictions.sum()
     else:
-        offset_loss = F.l1_loss(offset_predictions, offset_labels, reduction='none').sum() / len(offset_predictions)
-    
+        # offset loss
+        offset_losses = (offset_predictions[ind_off] - offset_labels[ind_off]).pow(2).sum(1).sqrt()
+        offset_loss = offset_losses.mean()
+
     return semantic_loss, offset_loss
-
-
-def get_voxel_sizes(batch, config):
-    # get voxel_sizes to use in forward
-    if config.mode == 'pointwise':
-        voxel_sizes = torch.ones((batch['batch_size'], 3)) * config.voxel_size
-    elif config.mode == 'classifier':
-        voxel_sizes = calculate_voxel_sizes(batch['coords'], batch['batch_ids'], config.n_voxels_in_each_direction)
-    voxel_sizes = [row.tolist() for row in voxel_sizes]
-    return voxel_sizes
-
-
-def calculate_voxel_sizes(coords, batch_ids, n_voxels_in_each_direction):
-    unique_batch_ids = torch.unique(batch_ids)
-    voxel_sizes = torch.zeros((len(unique_batch_ids), 3), dtype=torch.float)
-
-    for i in unique_batch_ids:
-        instance_coords = coords[batch_ids == i]
-        min_coords, _ = torch.min(instance_coords, dim=0)
-        max_coords, _ = torch.max(instance_coords, dim=0)
-
-        voxel_sizes[i] = (max_coords - min_coords + 0.001) / n_voxels_in_each_direction
-
-    return voxel_sizes
-
-
-@cuda_cast
-def get_cls_loss(pred_cls_logits, target_cls, weight):
-    cls_loss = F.cross_entropy(pred_cls_logits, target_cls, weight)
-    return cls_loss

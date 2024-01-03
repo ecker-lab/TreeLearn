@@ -2,8 +2,10 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
+import torch
+import laspy
+from .data_preparation import load_data
 
-TREE_CLASS_IN_RAW_DATA = 9999
 
 
 
@@ -26,12 +28,12 @@ def get_unique_instance_labels_for_splits(coords, instance_labels, unique_instan
     return unique_instance_labels_y_greater_zero, unique_instance_labels_y_not_greater_zero
 
 
-def get_detections(instance_labels, instance_preds, unique_instance_labels, unique_instance_preds, min_iou_match):
+def get_detections(instance_labels, instance_preds, unique_instance_labels, unique_instance_preds, min_iou_match, non_tree_label):
     iou_matrix = np.zeros((len(unique_instance_preds), len(unique_instance_labels)))
     for instance_pred in unique_instance_preds:
         instance_pred_mask = instance_preds == instance_pred
         instance_labels_part_of_instance_pred = np.unique(instance_labels[instance_pred_mask])
-        instance_labels_part_of_instance_pred = instance_labels_part_of_instance_pred[instance_labels_part_of_instance_pred != TREE_CLASS_IN_RAW_DATA]
+        instance_labels_part_of_instance_pred = instance_labels_part_of_instance_pred[instance_labels_part_of_instance_pred != non_tree_label]
 
         for instance_label_part_of_instance_pred in instance_labels_part_of_instance_pred:
             instance_label_mask = instance_labels == instance_label_part_of_instance_pred
@@ -44,7 +46,6 @@ def get_detections(instance_labels, instance_preds, unique_instance_labels, uniq
     matched_preds_preliminary, matched_gts_preliminary = scipy.optimize.linear_sum_assignment(iou_matrix, maximize=True)
     mask_satisfies_match_condition = iou_matrix[matched_preds_preliminary, matched_gts_preliminary] > min_iou_match # min_iou_match >> 0 (e.g. 0.2) recommended to avoid zero iou matching
     matched_preds, matched_gts = matched_preds_preliminary[mask_satisfies_match_condition], matched_gts_preliminary[mask_satisfies_match_condition]
-
     return matched_gts, matched_preds, iou_matrix
 
 
@@ -66,6 +67,7 @@ def get_detection_failures(matched_gts, matched_preds, unique_instance_labels, u
 
     non_matched_gts_corresponding_larger_tree = []
     for non_matched_gt in non_matched_gts:
+        assert np.max(iou_matrix[:, non_matched_gt]) > 0, 'non matched ground truth does not have any corresponding prediction'
         corresponding_pred = np.argmax(iou_matrix[:, non_matched_gt])
         non_matched_gts_corresponding_larger_tree.append(np.argmax(iou_matrix[corresponding_pred, :]))
     non_matched_gts_corresponding_larger_tree = np.array(non_matched_gts_corresponding_larger_tree)
@@ -349,3 +351,55 @@ def get_segmentation_metrics(tp, fp, tn, fn):
     error_rate = 1 - iou
 
     return acc, prec, rec, f1, fdr, fnr, one_minus_f1, iou, fp_error_rate, fn_error_rate, error_rate
+
+
+#############################################################################################
+###################### FUNCTIONS FOR EVALUATION NOTEBOOK#####################################
+#############################################################################################
+
+
+
+def load_results(instance_evaluation_path, benchmark_forest_path, unlabeled_class_in_instance_labels):
+    instance_evaluation = torch.load(instance_evaluation_path)
+
+    benchmark_forest = load_data(benchmark_forest_path)
+    outpoints_trees = laspy.read(benchmark_forest_path).OutpointsTreeID
+    benchmark_forest[:, 3][outpoints_trees != 0] = outpoints_trees[outpoints_trees != 0]
+    benchmark_forest = benchmark_forest[benchmark_forest[:, -1] != unlabeled_class_in_instance_labels]
+    instance_labels = benchmark_forest[:, 3]
+    instance_preds = instance_evaluation['instance_preds_propagated_to_benchmark_pointcloud']
+
+    return instance_evaluation, instance_labels, instance_preds
+
+
+def get_qualitative_assessment(instance_evaluation, verbose=True):
+    if verbose:
+        print(f"Number of matched predictions: {len(instance_evaluation['detection_results']['matched_preds'])}")
+        print(f"non_matched_predictions: {instance_evaluation['detection_results']['non_matched_preds']}; non_matched_predictions corresponding gt: {instance_evaluation['detection_results']['non_matched_preds_corresponding_gt']}")
+        print(f"non_matched_gt: {instance_evaluation['detection_results']['non_matched_gts']}; non_matched_gts_corresponding_larger_tree: {instance_evaluation['detection_results']['non_matched_gts_corresponding_larger_tree']}")
+        print(f"non_matched_preds_where_corresponding_gt_is_nan: {instance_evaluation['detection_results']['non_matched_preds_where_corresponding_gt_is_nan']}")
+
+    n_fp = len(instance_evaluation['detection_results']['non_matched_preds'])
+    n_fn = len(instance_evaluation['detection_results']['non_matched_gts'])
+    return n_fp, n_fn
+
+
+def get_semantic_assessment(instance_labels, instance_preds, non_tree_class_in_instance_preds, non_tree_class_in_instance_labels):
+    tree_preds = instance_preds != non_tree_class_in_instance_preds
+    tree_labels = instance_labels != non_tree_class_in_instance_labels
+    non_tree_preds = np.logical_not(tree_preds)
+    non_tree_labels = np.logical_not(tree_labels)
+
+    tp_tree, fp_tree, tn_tree, fn_tree = get_eval_res_components(tree_preds, tree_labels)
+    tp_non_tree, fp_non_tree, tn_non_tree, fn_non_tree = get_eval_res_components(non_tree_preds, non_tree_labels)
+
+    acc_tree, prec_tree, rec_tree, f1_tree, fdr_tree, fnr_tree, one_minus_f1_tree, iou_tree, fp_error_rate_tree, fn_error_rate_tree, error_rate_tree = get_segmentation_metrics(tp_tree, fp_tree, tn_tree, fn_tree)
+    acc_non_tree, prec_non_tree, rec_non_tree, f1_non_tree, fdr_non_tree, fnr_non_tree, one_minus_f1_non_tree, iou_non_tree, fp_error_rate_non_tree, fn_error_rate_non_tree, error_rate_non_tree = get_segmentation_metrics(tp_non_tree, fp_non_tree, tn_non_tree, fn_non_tree)
+    # if you want, you can also return measures for non_tree and trees separately
+    
+    print(f'accuracy: {acc_tree}')
+
+
+def get_instance_assessment(instance_evaluation, n_instances_to_validate=156):
+    assert (len(instance_evaluation['segmentation_results']['no_partition']) + len(instance_evaluation['detection_results']['non_matched_gts']) * 2) == n_instances_to_validate
+    print(instance_evaluation['segmentation_results']['no_partition'][['prec', 'rec', 'f1', 'iou', 'fp_error_rate', 'fn_error_rate', 'error_rate']].mean(0))

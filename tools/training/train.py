@@ -4,25 +4,26 @@ import torch
 import torch.nn.parallel
 import tqdm
 import numpy as np
-import torch.nn.functional as F
 import time
 from collections import defaultdict
 from tree_learn.util import (checkpoint_save, init_train_logger, load_checkpoint,
                             is_multiple, get_args_and_cfg, build_cosine_scheduler, build_optimizer,
-                            point_wise_loss, get_eval_res_components, get_segmentation_metrics, get_voxel_sizes,
-                            build_dataloader)
-from tree_learn.model import TreeLearn, Classifier
+                            point_wise_loss, get_eval_res_components, get_segmentation_metrics, build_dataloader)
+from tree_learn.model import TreeLearn
 from tree_learn.dataset import TreeDataset
 
-TREE_CLASS_IN_DATASET = 0
-TREE_CONF_THRESHOLD = 0
-UNDERSTORY_CLASS_IN_DATASET = 1
+TREE_CLASS_IN_DATASET = 0 # semantic label for tree class in pytorch dataset
+NON_TREE_CLASS_IN_DATASET = 1 # semantic label for non-tree class in pytorch dataset
+TREE_CONF_THRESHOLD = 0.5 # minimum confidence for tree prediction
+
+
 
 
 def train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logger, writer):
     model.train()
     start = time.time()
     losses_dict = defaultdict(list)
+
 
     for i, batch in enumerate(train_loader, start=1):
         # break after a fixed number of samples have been passed
@@ -32,10 +33,6 @@ def train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logg
         scheduler.step(epoch)
         optimizer.zero_grad()
         with torch.cuda.amp.autocast(enabled=config.fp16):
-            
-            # get voxel_sizes to use in forward
-            voxel_sizes = get_voxel_sizes(batch, config.model)
-            batch['voxel_sizes'] = voxel_sizes
 
             # forward
             loss, loss_dict = model(batch, return_loss=True)
@@ -61,17 +58,13 @@ def train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logg
         log_str += f', {k}: {v:.2f}'
     logger.info(log_str)
     checkpoint_save(epoch, model, optimizer, config.work_dir, config.save_frequency)
-
+    
 
 def validate(config, epoch, model, val_loader, logger, writer):  
     with torch.no_grad():
         model.eval()
         semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, coords, instance_labels = [], [], [], [], [], []
         for batch in tqdm.tqdm(val_loader):
-
-            # get voxel_sizes to use in forward
-            voxel_sizes = get_voxel_sizes(batch, config.model)
-            batch['voxel_sizes'] = voxel_sizes
 
             # forward
             output = model(batch, return_loss=False)
@@ -105,10 +98,12 @@ def validate(config, epoch, model, val_loader, logger, writer):
 
 
 def pointwise_eval(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, config, epoch, writer, logger, eval_name):
-    _, offset_loss = point_wise_loss(semantic_prediction_logits.float(), offset_predictions[semantic_labels != UNDERSTORY_CLASS_IN_DATASET].float(), 
-                                                    semantic_labels, offset_labels[semantic_labels != UNDERSTORY_CLASS_IN_DATASET])
+    _, offset_loss = point_wise_loss(semantic_prediction_logits.float(), offset_predictions[semantic_labels != NON_TREE_CLASS_IN_DATASET].float(), 
+                                                    semantic_labels, offset_labels[semantic_labels != NON_TREE_CLASS_IN_DATASET])
     semantic_prediction_logits, semantic_labels = semantic_prediction_logits.cpu().numpy(), semantic_labels.cpu().numpy()
-    tree_pred_mask = semantic_prediction_logits[:, TREE_CLASS_IN_DATASET] >= TREE_CONF_THRESHOLD
+    
+    tree_pred_mask = torch.from_numpy(semantic_prediction_logits).float().softmax(dim=-1)[:, TREE_CLASS_IN_DATASET] >= TREE_CONF_THRESHOLD
+    tree_pred_mask = tree_pred_mask.numpy()
     tree_mask = semantic_labels == TREE_CLASS_IN_DATASET
 
     tp, fp, tn, fn = get_eval_res_components(tree_pred_mask, tree_mask)
@@ -126,13 +121,7 @@ def main():
     logger, writer = init_train_logger(config, args)
 
     # training objects
-    if config.model.mode == "pointwise":
-        model = TreeLearn(**config.model).cuda()
-    elif config.model.mode == "classifier":
-        model = Classifier(**config.model).cuda()
-    
-    # from torchinfo import summary
-    #logger.info(summary(model))
+    model = TreeLearn(**config.model).cuda()
     
     optimizer = build_optimizer(model, config.optimizer)
     scheduler = build_cosine_scheduler(config.scheduler, optimizer)
@@ -157,6 +146,7 @@ def main():
 
         train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logger, writer)
         if is_multiple(epoch, config.validation_frequency):
+            optimizer.zero_grad()
             logger.info('Validation')
             validate(config, epoch, model, val_loader, logger, writer)
         writer.flush()

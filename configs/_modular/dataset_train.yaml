@@ -1,11 +1,10 @@
 dataset_train:
-  training: True # True if dataset used for training; False if used for testing
-  data_root: '../datasets_simlink/data_trees/training_data/random_crops' # folder where tiles/crops for training or testing are located
+  training: True # True if dataset used for training; False if used for validation
+  data_root: 'data/train/random_crops/npz' # folder where crops for model training are located
   data_augmentations:
     jitter: True
     flip: True
     rot: True
     scaled: False
     point_jitter: False
-  inner_square_edge_length: 8 # Length of inner square to be used for training or testing. E.g. if tiles/crops are 30x30, this indicates that only inner 8x8 is taken into account
-  use_tree_height_in_offset: True # If True the offset vector points towards x, y coordinate of tree base and z coordinate of the highest point of tree. If False, it points towards x, y and z coordinate of tree base
+  inner_square_edge_length: 8 # Length of inner square to be used for training. E.g. if tiles/crops are 30mx30m, this indicates that only inner 8x8 is taken into account

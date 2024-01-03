@@ -1,0 +1,12 @@
+# default_args is used to include configs from the _modular folder into this config. This ensures a modular way of combining different config files.
+default_args: ["configs/_modular/sample_generation.yaml"]
+
+############ modification of default args
+sample_generation:
+  search_radius_features: 0.4
+  inner_edge: 8
+  outer_edge: 13.5
+  stride: 1
+
+############ non-default args
+forest_path: 'data/val/forest/L1W.laz' # path to forest point cloud for which validation tiles are to be generated

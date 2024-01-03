@@ -67,6 +67,8 @@ dist/
 # large files
 work_dirs
 data
+dataset
+data_archive_TreeLearn
 
 # private folder
 private
