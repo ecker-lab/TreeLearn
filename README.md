@@ -1,6 +1,3 @@
-##
-**This repository is currently undergoing major revisions with the goal of simplifying the method and providing models that are more robust to different forest types and laser scanning characteristics. We recommend to not use the repository in its current version.**
-
 # TreeLearn: A Comprehensive Deep Learning Method for Segmenting Individual Trees from Forest Point Cloud
 
 ![Architecture](./method.png)
@@ -8,19 +5,13 @@
 The article is available from [arXiv](https://arxiv.org/abs/2309.08471).
 
 Laser-scanned point clouds of forests make it possible to extract valuable information for forest management. To consider single trees, a forest point cloud needs to be segmented into individual tree point clouds. 
-Existing segmentation methods are usually based on hand-crafted algorithms, such as identifying trunks and growing trees from them, and face difficulties in dense forests with overlapping tree crowns. In this study, we propose TreeLearn, a deep learning-based approach for semantic and instance segmentation of forest point clouds. Unlike previous methods, TreeLearn is trained on already segmented point clouds in a data-driven manner, making it less reliant on predefined features and algorithms. 
-Additionally, we introduce a new manually segmented benchmark forest dataset containing 156 full trees, and 79 partial trees, that have been cleanly segmented by hand. This enables the evaluation of instance segmentation performance going beyond just evaluating the detection of individual trees.
-We trained TreeLearn on forest point clouds of 6665 trees, labeled using the Lidar360 software. An evaluation on the benchmark dataset shows that TreeLearn performs equally well or better than the algorithm used to generate its training data. Furthermore, the method's performance can be vastly improved by fine-tuning on the cleanly labeled benchmark dataset. 
+Existing segmentation methods are usually based on hand-crafted algorithms, such as identifying trunks and growing trees from them, and face difficulties in dense forests with overlapping tree crowns. In this study, we propose TreeLearn, a deep learning-based approach for tree instance segmentation of forest point clouds. Unlike previous methods, TreeLearn is trained on already segmented point clouds in a data-driven manner, making it less reliant on predefined features and algorithms. Furthermore, TreeLearn is implemented as a fully automatic pipeline and does not rely on extensive hyperparameter tuning, which makes it easy to use. Additionally, we introduce a new manually segmented benchmark forest dataset containing 156 full trees, and 79 partial trees, that have been cleanly segmented by hand. This is an important step towards creating a large and diverse data basis for model development and fine-grained instance segmentation evaluation. We trained TreeLearn on forest point clouds of 6665 trees, labeled using the Lidar360 software. An evaluation on the benchmark dataset shows that TreeLearn performs equally well or better than the algorithm used to generate its training data. Furthermore, the method's performance can be vastly improved by fine-tuning on the cleanly labeled benchmark dataset. The TreeLearn code is availabe from \url{https://github.com/ecker-lab/TreeLearn}. The data as well as trained models can be found at \url{https://doi.org/10.25625/VPMPID}
 
 For a quick demo of the capabilities of TreeLearn without any manual setup, we prepared a google colab notebook: 
 
 <a target="_blank" href="https://colab.research.google.com/github/ecker-lab/TreeLearn/blob/main/TreeLearn_Pipeline.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
-
-## Limitations
-
-Please note that our models have been trained on tls/mls data of forests dominated by beech. Initial results for point clouds obtained from other forest types or laser scanning methods suggest that the segmentation performance decreases substantially in this case. We expect that for a good performance on e.g. uav data and other forest types, finetuning the models is necessary. We are currently working towards including more powerful models that have been trained on a broader data basis.
 
 ## Setup
 
@@ -39,34 +30,28 @@ To download the data, we recommend using the script ``tree_learn/util/download.p
 
 | Data        | Download                                             | 
 | ----------- | :----------------------------------------------------------- |
-| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark_dataset``` | 
-| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark_dataset``` | 
-| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/automatically_segmented``` | 
-| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/automatically_segmented``` |
+| Benchmark dataset (npz)   | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_npz --root_folder data/benchmark``` | 
+| Benchmark dataset (las)  | ```python tree_learn/util/download.py --dataset_name benchmark_dataset_las --root_folder data/benchmark``` | 
+| Automatically segmented data (npz)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_npz --root_folder data/train/forests``` | 
+| Automatically segmented data (las)   | ```python tree_learn/util/download.py --dataset_name automatically_segmented_data_las --root_folder data/train/forests_las``` |
 | Model checkpoints   | ```python tree_learn/util/download.py --dataset_name checkpoints --root_folder data/checkpoints``` | 
 | Extra files   | ```python tree_learn/util/download.py --dataset_name extra --root_folder data/extra``` | 13 GB        |
-
-<!-- Please refer to [setup guide](docs/setup.md) -->
-<!-- Please refer to [pipeline guide](docs/tools/pipeline.md) -->
 
 
 ## Segmentation pipeline
 
-To begin with, it should be noted that all functionality in this repository can be configured using the config files located in the folder ``configs``.
-We do not enforce a specific folder structure with regard to where data (e.g. point clouds or pre-trained models) is stored. You can save them where it is most suitable for you.
-To ensure that the functionality of this repository works without errors, all config arguments pertaining to data paths must be changed to conform with where you store your data.
-Next we explain how to obtain segmentation results of a forest point cloud into understory and trees. You need to perform the following three steps:
+In the following, we explain how to run the segmentation pipeline on our benchmark dataset L1W. Running the segmentation pipeline on a custom forest point cloud works analogously.
 
-*1\) Download pre-trained models*
-* Follow the instructions given above to obtain the pre-trained models.
+*1\) Download pre-trained models and L1W forest point cloud*
+* TODO: GIVE CONCRETE COMMAND
 
-*2\) Prepare forest point cloud to be segmented*
-* The forest point cloud must be provided either as a npy file (contains numpy array) or a space-delimited txt file.
-* The data must consist of N rows and three columns where N is the number of points in the point cloud and the columns are the x, y and z coordinates of the forest.
+*2\) Prepare forest point cloud to be segmented* (This is already fulfilled for L1W)
+* The forest point cloud must be provided as a las, laz, npy, npz or a space-delimited txt file. 
 * The coordinates must be provided in meter scale and have a minimum resolution of one point per (0.1 m)<sup>3</sup>.
 * Ground and understory points must still be part of the point cloud. Only rough noise filtering has to be performed in advance (e.g. to remove scanned particles in the air).
-* The point cloud file must be placed in a folder 'forests' located in another folder that constitutes the base directory containing all pipeline-related output: ``pipeline_output/forests/your_filename.npy``
-* We recommend retaining an edge around the point cloud that is of interest. E.g. for an area of interest of 100 m x 100 m, retain an edge of ~10 m to each side so that input is 120 m x 120 m.
+* The point cloud file must be placed in ``data/pipeline/L1W/forest``
+* Change the entry 'forest_path' in the pipeline configuration at ``configs/pipeline/pipeline.yaml`` to ``data/pipeline/L1W/forest/L1W.laz``
+* We strongly recommend retaining an edge around the point cloud that is of interest. E.g. for an area of interest of 100 m x 100 m, retain an edge of ~13.5 m to each side so that input is 127 m x 127 m.
 * The pipeline automatically removes the edge which is only needed as context for network prediction. The xy-shape of the point cloud does not have to be square. Arbitrary shapes are allowed.
 
 *3\) Run segmentation pipeline*
