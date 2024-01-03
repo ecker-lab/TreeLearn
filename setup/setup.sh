@@ -12,7 +12,6 @@ pip install -r requirements.txt
 
 
 # build
-cd ..
 pip install -e .
 pip install jupyter
 conda deactivate
