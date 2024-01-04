@@ -6,66 +6,60 @@ import os
 
 BASE_PATH = "https://data.goettingen-research-online.de/api/access/datafile/:persistentId?persistentId=doi:10.25625/VPMPID/"
 
-class automatically_segmented_data_npz:
+class automatically_segmented_data:
     files = [
-        ["LSZAKN", "A1N.npz"],
-        ["L12GKR", "A1W.npz"],
-        ["NHKXI5", "G1N.npz"],
-        ["7WWGQN", "G1W.npz"],
-        ["ARBSN6", "G2N.npz"],
-        ["OBWZM7", "G2W.npz"],
-        ["MRZYK7", "G3N.npz"],
-        ["0HKPXL", "G3W.npz"],
-        ["WYA6Q3", "G4N.npz"],
-        ["FIN2NN", "G4W.npz"],
-        ["83JWGL", "L1N.npz"],
-        ["6PUXJX", "L2N.npz"],
-        ["GZXXUJ", "L2W.npz"],
-        ["2KL2W6", "LG1.npz"],
-        ["16FD31", "LG2.npz"],
-        ["F1LFV1", "LG3.npz"],
-        ["CONPA6", "O1N.npz"],
-        ["HUMKWY", "O1W.npz"],
+        ["VZ2ENJ", "A1N.laz"],
+        ["4BA1BD", "A1W.laz"],
+        ["MOFUYC", "G1N.laz"],
+        ["I0M17S", "G1W.laz"],
+        ["GQAIGP", "G2N.laz"],
+        ["XHACRG", "G2W.laz"],
+        ["K8UOPU", "G3N.laz"],
+        ["KT8EB4", "G3W.laz"],
+        ["0FIQFD", "G4N.laz"],
+        ["XXWS3Z", "G4W.laz"],
+        ["8ZOLYB", "L1N.laz"],
+        ["2OU297", "L2N.laz"],
+        ["YGJKLJ", "L2W.laz"],
+        ["3WBA7S", "LG1.laz"],
+        ["OBJTIG", "LG2.laz"],
+        ["EDG9IB", "LG3.laz"],
+        ["UXBEDS", "O1N.laz"],
+        ["1IE8CP", "O1W.laz"],
     ]
 
-class automatically_segmented_data_las:
-    files = [["YVV2OX", "las_automatically_segmented.zip"]]
 
-class benchmark_dataset_npz:
+class benchmark_dataset:
     files = [
-        ["8ISOJQ", "L1W.npz"],
-        ["JHJ2EN", "L1W_voxelized01.npz"]
+        ["QXXJ2I", "L1W.laz"]
     ]
 
-class benchmark_dataset_las:
+
+class benchmark_dataset_voxelized:
     files = [
-        ["9QBPIK", "las_L1W.zip"]
+        ["AQM6VO", "L1W_voxelized01.laz"]
     ]
 
-class checkpoints:
+
+class model_weights_diverse_training_data:
     files = [
-        ["67HOLF", "checkpoint_classifier.pth"],
-        ["WFJLNW", "checkpoint_pointwise_prediction.pth"],
-        ["E8Y1IV", "finetuned_checkpoint_classifier.pth"],
-        ["JTPZRG", "finetuned_checkpoint_pointwise_prediction.pth"]
+        ["1JMEQV", "model_weights_diverse_training_data.pth"]
     ]
 
-class extra:
+
+class evaluated_trees:
     files = [
-        ["JE6KOC", "open_files.ipynb"],
-        ["UGAQTV", "evaluated_trees.txt"],
-        ["PSB6SU", "ReadMe.txt"],
+        ["WTIB7F", "evaluated_trees.txt"]
     ]
 
 
 def get_ids(name):
     datasets = {
-        "benchmark_dataset_npz": benchmark_dataset_npz,
-        "benchmark_dataset_las": benchmark_dataset_las,
-        "checkpoints": checkpoints,
-        "automatically_segmented_data_npz": automatically_segmented_data_npz,
-        "automatically_segmented_data_las": automatically_segmented_data_las,
-        "extra": extra
+        "automatically_segmented_data": automatically_segmented_data,
+        "benchmark_dataset": benchmark_dataset,
+        "benchmark_dataset_voxelized": benchmark_dataset_voxelized,
+        "model_weights_diverse_training_data": model_weights_diverse_training_data,
+        "evaluated_trees": evaluated_trees
     }
     
     dataset = datasets.get(name)
@@ -81,8 +75,7 @@ def download_data(root_folder, dataset_name):
 
     Args:
     root_folder: The root folder where the data will be downloaded
-    dataset_name: The name of the dataset to download, one of: reduced_resolution_V5000, reduced_resolution_G5000,
-       full_resolution_V5000, full_resolution_G5000 or single_example_G5000  """
+    dataset_name: The name of the dataset to download, must be defined in this python file.  """
 
     print(f"Downloading data for {dataset_name} ...")
 
