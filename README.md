@@ -104,7 +104,7 @@ python tools/evaluation/evaluate_benchmark.py --config configs/evaluation/evalua
 
 ## Limitations
 
-* Our method requires a sufficiently high resolution of the tree trunks. This requirement might not be fulfilled for point clouds obtained via airborne laser scanning.
+* Our method requires a sufficiently high resolution of the tree trunks. This requirement might not be fulfilled for point clouds obtained via airborne laser scanning. In case that the trunks are captured well enough, our method might also work for point clouds captured via ALS/UAV.
 * Our method requires a sufficiently high context to generate predictions. If the segmentation pipeline is run without removing a buffer of 13.5 meters, segmentation results are expected to not be good at the edges of the point cloud.
 
 
