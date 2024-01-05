@@ -6,7 +6,7 @@ from tensorboardX import SummaryWriter as _SummaryWriter
 
 
 def get_root_logger(log_file=None, log_level=logging.INFO):
-    logger = logging.getLogger('softgroup')
+    logger = logging.getLogger('TreeLearn')
     # if the logger has been initialized, just return it
     if logger.hasHandlers():
         return logger

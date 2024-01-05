@@ -26,7 +26,7 @@ Depending on the specific gpu and cuda version of your system, you might need to
 
 ## Segmentation pipeline
 
-In the following, we explain how to run the segmentation pipeline on our benchmark dataset L1W. Running the segmentation pipeline on a custom forest point cloud works analogously. You can change the configuration of running the pipeline by editing the configuration file located at ``configs/pipeline/pipeline.yaml``. However, the default configuration should be adequate for the majority of cases.
+All commands should be run while being in the TreeLearn root directory. In the following, we explain how to run the segmentation pipeline on our benchmark dataset L1W. Running the segmentation pipeline on a custom forest point cloud works analogously. You can change the configuration of running the pipeline by editing the configuration file located at ``configs/pipeline/pipeline.yaml``. However, the default configuration should be adequate for the majority of cases.
 
 *1\) Download pre-trained model weights and L1W forest point cloud*
 ```
@@ -118,6 +118,7 @@ python tools/evaluation/evaluate_benchmark.py --config configs/evaluation/evalua
 
 * Our method requires a sufficiently high resolution of the tree trunks. This requirement might not be fulfilled for point clouds obtained via airborne laser scanning. In case that the trunks are captured well enough, our method might also work for point clouds captured via ALS/UAV.
 * Our method requires a sufficiently high context to generate predictions. If the segmentation pipeline is run without removing a buffer of 13.5 meters, segmentation results are expected to not be good at the edges of the point cloud.
+* Trees that are smaller than 10 meters will most likely be predicted to belong to the non-tree class. This is because we did not have any training data available where small trees are consistently labeled.
 
 
 ## Acknowledgements
