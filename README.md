@@ -29,8 +29,12 @@ Depending on the specific gpu and cuda version of your system, you might need to
 In the following, we explain how to run the segmentation pipeline on our benchmark dataset L1W. Running the segmentation pipeline on a custom forest point cloud works analogously. You can change the configuration of running the pipeline by editing the configuration file located at ``configs/pipeline/pipeline.yaml``. However, the default configuration should be adequate for the majority of cases.
 
 *1\) Download pre-trained model weights and L1W forest point cloud*
-* ```python tree_learn/util/download.py --dataset_name model_weights_diverse_training_data --root_folder data/model_weights```
-* ```python tree_learn/util/download.py --dataset_name benchmark_dataset --root_folder data/pipeline/L1W/forest```
+```
+python tree_learn/util/download.py --dataset_name model_weights_diverse_training_data --root_folder data/model_weights
+```
+```
+python tree_learn/util/download.py --dataset_name benchmark_dataset --root_folder data/pipeline/L1W/forest
+```
 
 *2\) Prepare forest point cloud to be segmented* (This is already fulfilled for L1W)
 * The forest point cloud must be provided as a las, laz, npy, npz or a space-delimited txt file. 
@@ -52,9 +56,13 @@ python tools/pipeline/pipeline.py --config configs/pipeline/pipeline.yaml
 
 Here we explain how to train your own networks for semantic and offset prediction using the automatically segmented point clouds introduced in the paper. Training the network on custom forest point clouds works analogously.
 
-*1\) Download point clouds for training and validation*
-* ```python tree_learn/util/download.py --dataset_name automatically_segmented_data --root_folder data/train/forests```
-* ```python tree_learn/util/download.py --dataset_name benchmark_dataset --root_folder data/val/forest```
+*1\) Download training/validation point clouds and pretrained model weights*
+```
+python tree_learn/util/download.py --dataset_name automatically_segmented_data --root_folder data/train/forests
+```
+```
+python tree_learn/util/download.py --dataset_name benchmark_dataset --root_folder data/val/forest
+```
 * Download the pretrained model weights provided by [SoftGroup](https://drive.google.com/file/d/1FABsCUnxfO_VlItAzDYAwurdfcdK-scs/view?usp=sharing). Save the file to ``data/model_weights/hais_ckpt_spconv2.pth``.
 
 *2\) Generate training crops for semantic and offset prediction*
@@ -84,8 +92,12 @@ python tools/training/train.py --config configs/training/train.yaml
 To evaluate the performance of an arbitrary segmentation method on the benchmark dataset in the same way as in the paper, you need to do the following:
 
 *1\) Download benchmark dataset in voxelized form and evaluated_trees.txt*
-* ```python tree_learn/util/download.py --dataset_name benchmark_dataset_voxelized --root_folder data/benchmark```
-* ```python tree_learn/util/download.py --dataset_name evaluated_trees --root_folder data/extra```
+```
+python tree_learn/util/download.py --dataset_name benchmark_dataset_voxelized --root_folder data/benchmark
+```
+```
+python tree_learn/util/download.py --dataset_name evaluated_trees --root_folder data/extra
+```
 
 
 *2\) Obtain prediction results on the benchmark dataset with an arbitrary method*
