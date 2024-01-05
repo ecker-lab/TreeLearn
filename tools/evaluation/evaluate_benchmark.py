@@ -40,8 +40,6 @@ def evaluate(config, config_path=None):
     # propagate instance predictions to benchmark pointcloud
     logger.info('propagating predictions to coords of benchmark...')
     instance_preds = propagate_preds(pred_forest_coords, instance_preds, benchmark_forest_coords, 5)
-    np.save('/usr/users/henrich1/TreeLearn/data/instance_preds.npy', instance_preds)
-    # instance_preds = np.load('/usr/users/henrich1/TreeLearn/data/instance_preds.npy')
     instance_preds = instance_preds - 1
 
     # make labels consecutive and get unique instance preds

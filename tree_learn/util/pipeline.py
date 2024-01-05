@@ -257,7 +257,7 @@ def generate_random_color():
     return [random.randint(0, 255) for _ in range(3)]
 
 
-def save_data(data, save_format, save_name, save_folder):
+def save_data(data, save_format, save_name, save_folder, use_offset=True):
     if save_format == "las" or save_format == "laz":
         # get points and labels
         assert data.shape[1] == 4
@@ -269,8 +269,12 @@ def save_data(data, save_format, save_name, save_folder):
 
         # Create a new LAS file
         header = laspy.LasHeader(version="1.2", point_format=3)
-        mean_x, mean_y, mean_z = points.mean(0)
-        header.offsets = [mean_x, mean_y, 0]
+        if use_offset:
+            mean_x, mean_y, _ = points.mean(0)
+            header.offsets = [mean_x, mean_y, 0]
+        else:
+            header.offsets = [0, 0, 0]
+        
         points = points + header.offsets
         header.scales = [0.001, 0.001, 0.001]
         las = laspy.LasData(header)
@@ -327,8 +331,8 @@ def save_treewise(coords, instance_preds, cluster_means_within_hull, insts_not_a
             continue
 
         if cluster_means_within_hull[i-1] and insts_not_at_edge[i-1]:
-            save_data(pred_coord, save_format, str(int(i)), completely_inside_dir)
+            save_data(pred_coord, save_format, str(int(i)), completely_inside_dir, use_offset=False)
         elif cluster_means_within_hull[i-1] and not insts_not_at_edge[i-1]:
-            save_data(pred_coord, save_format, str(int(i)), trunk_base_inside_dir)
+            save_data(pred_coord, save_format, str(int(i)), trunk_base_inside_dir, use_offset=False)
         elif not cluster_means_within_hull[i-1]:
-            save_data(pred_coord, save_format, str(int(i)), trunk_base_outside_dir)
+            save_data(pred_coord, save_format, str(int(i)), trunk_base_outside_dir, use_offset=False)
