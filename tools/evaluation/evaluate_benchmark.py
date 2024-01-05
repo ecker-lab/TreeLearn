@@ -48,12 +48,10 @@ def evaluate(config, config_path=None):
     instance_preds[instance_preds != (NON_TREE_LABEL-1)] = make_labels_consecutive(instance_preds[instance_preds != (NON_TREE_LABEL-1)], start_num=START_NUM_PREDS)
     unique_instance_preds = np.unique(instance_preds)
     unique_instance_preds = unique_instance_preds[unique_instance_preds != (NON_TREE_LABEL-1)]
-    print(unique_instance_preds)
 
     # get unique instance labels
     unique_instance_labels = np.unique(benchmark_forest_instance_labels)
     unique_instance_labels = unique_instance_labels[unique_instance_labels != (NON_TREE_LABEL-1)]
-    print(unique_instance_labels)
 
     # instantiate results dict
     results_dict = dict()
