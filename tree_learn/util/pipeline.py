@@ -81,11 +81,13 @@ def get_pointwise_preds(model, dataloader, config, logger=None):
                 output = model(batch, return_loss=False)
                 offset_prediction, semantic_prediction_logit, backbone_feat = output['offset_predictions'], output['semantic_prediction_logits'], output['backbone_feats']
                 offset_prediction, semantic_prediction_logit, backbone_feat = offset_prediction.cpu(), semantic_prediction_logit.cpu(), backbone_feat.cpu()
-            except:
-                if logger:
-                    logger.info('Error in forward pass of network. Probably due to axis size collapse to zero during contraction of U-Net. If this does not happen for many tiles, this should not matter that much.')
-                continue
-            
+            except Exception as e:
+                if "reach zero!!!" in str(e):
+                    if logger:
+                        logger.info('Error in forward pass due to axis size collapse to zero during contraction of U-Net. If this does not happen too often, the results should not be influenced.')
+                    continue 
+                else:
+                    raise
 
             batch['coords'] = batch['coords'] + batch['centers']
             input_feats.append(batch['input_feats'][batch['masks_inner']])

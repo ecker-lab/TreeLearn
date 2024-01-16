@@ -13,6 +13,9 @@ For a quick demo of the capabilities of TreeLearn without any manual setup, we p
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
+## Updates!!
+* 【2024/01/16】 Provide a new version of ``model_weights_diverse_training_data.pth`` (can be found [here](https://doi.org/10.25625/VPMPID)) that produces visually more appealing results.
+
 ## Setup
 
 To set up the environment we recommend Conda. If Conda is set up and activated, run the following: 
@@ -119,6 +122,7 @@ python tools/evaluation/evaluate_benchmark.py --config configs/evaluation/evalua
 * Our method requires a sufficiently high resolution of the tree trunks. This requirement might not be fulfilled for point clouds obtained via airborne laser scanning. In case that the trunks are captured well enough, our method might also work for point clouds captured via ALS/UAV.
 * Our method requires a sufficiently high context to generate predictions. If the segmentation pipeline is run without removing a buffer of 13.5 meters, segmentation results are expected to not be good at the edges of the point cloud.
 * Trees that are smaller than 10 meters will most likely be predicted to belong to the non-tree class. This is because we did not have any training data available where small trees are consistently labeled.
+* Although the provided model weights have been trained on diverse data (see description of our [dataset](https://doi.org/10.25625/VPMPID)), it has not been trained and tested on all forest types, such as tropical forests. We cannot make any assessment about the performance of TreeLearn in such cases.
 
 
 ## Acknowledgements

@@ -43,6 +43,7 @@ def load_data(path):
             data = np.hstack([points, labels[:,np.newaxis]])
         else:
             data = np.vstack((las_file.x, las_file.y, las_file.z)).T
+            data = data - las_file.header.offset
     elif path.endswith('txt'):
         data = pd.read_csv(path, delimiter=' ').to_numpy()
     
