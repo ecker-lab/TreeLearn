@@ -19,7 +19,7 @@ def load_data(path):
     elif path.endswith('npz'):
         data = np.load(path)
         assert 'points' in data
-        if 'points' in data and not 'labels' in data:
+        if 'points' in data and 'labels' not in data:
             data = data['points']
         else:
             data = np.hstack((data["points"], data["labels"][:,np.newaxis]))
@@ -65,12 +65,12 @@ def voxelize(data, voxel_size):
     downpcd, _, idx = pcd.voxel_down_sample_and_trace(voxel_size, min_bound, max_bound)
 
     if data.shape[1] >= 4:
-        idx = [item[0] for item in idx]
-        other = other[idx]
+        idx_keep = [item[0] for item in idx]
+        other = other[idx_keep]
         data = np.hstack((np.asarray(downpcd.points), other))
     else:
         data = np.asarray(downpcd.points)
-    return data
+    return data, idx
 
 
 def compute_features(points, search_radius=0.35, feature_names=['verticality'], num_threads=4):

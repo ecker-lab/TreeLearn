@@ -1,7 +1,7 @@
-import torch
 import os
 import numpy as np
 import argparse
+import pickle
 import pprint
 import shutil
 from tree_learn.dataset import TreeDataset
@@ -10,7 +10,7 @@ from tree_learn.util import (build_dataloader, get_root_logger, load_checkpoint,
                              get_coords_within_shape, get_hull_buffer, get_hull, get_cluster_means,
                              propagate_preds, save_treewise, load_data, save_data, make_labels_consecutive, 
                              get_config, generate_tiles, assign_remaining_points_nearest_neighbor,
-                             get_pointwise_preds, get_instances)
+                             get_pointwise_preds, get_instances, propagate_preds_hash_full, propagate_preds_hash_vox)
 
 TREE_CLASS_IN_PYTORCH_DATASET = 0
 NON_TREES_LABEL_IN_GROUPING = 0
@@ -44,7 +44,7 @@ def run_treelearn_pipeline(config, config_path=None):
     config.dataset_test.data_root = os.path.join(tiles_dir, 'npz')
     if config.tile_generation:
         logger.info('#################### generating tiles ####################')
-        generate_tiles(config.sample_generation, config.forest_path, logger)
+        generate_tiles(config.sample_generation, config.forest_path, logger, config.save_cfg.return_type)
 
     # Make pointwise predictions with pretrained model
     logger.info(f'{plot_name}: #################### getting pointwise predictions ####################')
@@ -129,20 +129,31 @@ def run_treelearn_pipeline(config, config_path=None):
     if config.save_cfg.return_type == 'original':
         logger.info(f'{plot_name}: Propagating predictions to original points')
         coords_to_return = load_data(config.forest_path)[:, :3]
+        hash_mapping_path = os.path.join(voxelized_data_dir, f'{plot_name}_hash_mapping.pkl')
+        with open(hash_mapping_path, 'rb') as pickle_file:
+            hash_mapping = pickle.load(pickle_file)
+        preds_to_return, not_yet_propagated = propagate_preds_hash_full(coords, instance_preds, coords_to_return, hash_mapping)
         if config.shape_cfg.outer_remove:
             mask_coords_to_return_within_hull_buffer_large = get_coords_within_shape(coords_to_return, hull_buffer_large)
             masks_inner_coords_to_return = np.logical_not(mask_coords_to_return_within_hull_buffer_large)
             coords_to_return = coords_to_return[masks_inner_coords_to_return]
-        preds_to_return = propagate_preds(coords, instance_preds, coords_to_return, n_neighbors=5)
+            preds_to_return = preds_to_return[masks_inner_coords_to_return]
+            not_yet_propagated = not_yet_propagated[masks_inner_coords_to_return]
+        if not_yet_propagated.any():
+            preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
     elif config.save_cfg.return_type == 'voxelized':
         logger.info(f'{plot_name}: Propagating predictions to voxelized points')
         voxelized_forest_path = os.path.join(voxelized_data_dir, f'{plot_name}.npz')
         coords_to_return = load_data(voxelized_forest_path)[:, :3]
+        preds_to_return, not_yet_propagated = propagate_preds_hash_vox(coords, instance_preds, coords_to_return)
         if config.shape_cfg.outer_remove:
             mask_coords_to_return_within_hull_buffer_large = get_coords_within_shape(coords_to_return, hull_buffer_large)
             masks_inner_coords_to_return = np.logical_not(mask_coords_to_return_within_hull_buffer_large)
             coords_to_return = coords_to_return[masks_inner_coords_to_return]
-        preds_to_return = propagate_preds(coords, instance_preds, coords_to_return, n_neighbors=5)
+            preds_to_return = preds_to_return[masks_inner_coords_to_return]
+            not_yet_propagated = not_yet_propagated[masks_inner_coords_to_return]
+        if not_yet_propagated.any():
+            preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
     elif config.save_cfg.return_type == 'voxelized_and_filtered':
         coords_to_return = coords
         preds_to_return = instance_preds

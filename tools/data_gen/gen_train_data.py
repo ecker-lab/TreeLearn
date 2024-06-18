@@ -37,17 +37,10 @@ def generate_random_crops(cfg):
         if osp.exists(save_path_voxelized):
             continue
         data = load_data(osp.join(forests_dir, plot_file))
-        data = voxelize(data, cfg.sample_generation.voxel_size)
+        data, _ = voxelize(data, cfg.sample_generation.voxel_size)
         data = np.round(data, 2)
         data = data.astype(np.float32)
         np.savez_compressed(save_path_voxelized, points=data[:, :3], labels=data[:, 3])
-        # save_path_features = osp.join(features_dir, f'{plot_name}.npz')
-        # features = np.load(save_path_features)
-        # features = features['features']
-        # data_features = voxelize(np.hstack((data, features)), cfg.sample_generation.voxel_size)
-        # data = data_features[:, :4]
-        # features = data_features[:, 4:]
-        # np.savez_compressed(save_path_features, features=features.astype(np.float32))
     
     # calculate features
     logger.info('calculating features...')

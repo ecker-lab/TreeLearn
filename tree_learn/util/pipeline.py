@@ -3,7 +3,7 @@ import alphashape
 
 import numpy as np
 import pandas as pd
-import open3d as o3d
+import pickle
 import os
 import os.path as osp
 import tqdm
@@ -22,7 +22,7 @@ N_JOBS = 10 # number of threads/processes to use for several functions that have
 
 
 # function to generate tiles
-def generate_tiles(cfg, forest_path, logger):
+def generate_tiles(cfg, forest_path, logger, return_type='voxelized'):
     plot_name = os.path.basename(forest_path)[:-4]
     base_dir = os.path.dirname(os.path.dirname(forest_path))
 
@@ -34,21 +34,28 @@ def generate_tiles(cfg, forest_path, logger):
     os.makedirs(features_dir, exist_ok=True)
     os.makedirs(save_dir, exist_ok=True)
 
-    # voxelize forest
+    # voxelize forest and optionally calculate hash mapping to original points
     logger.info('voxelizing forest...')
     save_path_voxelized = osp.join(voxelized_dir, f'{plot_name}.npz')
-    if not osp.exists(save_path_voxelized):
+    save_path_voxelized_original_idx = osp.join(voxelized_dir, f'{plot_name}_original_idx.pkl')
+    save_path_hash_mapping = osp.join(voxelized_dir, f'{plot_name}_hash_mapping.pkl')
+    if not osp.exists(save_path_voxelized) or (return_type == 'original' and not osp.exists(save_path_voxelized_original_idx)):
         data = load_data(forest_path)
-        data = voxelize(data, cfg.voxel_size)
+        data, original_idx = voxelize(data, cfg.voxel_size)
         data = np.round(data, 2)
         data = data.astype(np.float32)
         np.savez_compressed(save_path_voxelized, points=data[:, :3], labels=data[:, 3])
-        # features = np.load(save_path_features)
-        # features = features['features']
-        # data_features = voxelize(np.hstack((data, features)), cfg.voxel_size)
-        # data = data_features[:, :4]
-        # features = data_features[:, 4:]
-        # np.savez_compressed(save_path_features, features=features.astype(np.float32))
+
+        if return_type == 'original':
+            original_idx = [list(item) for item in original_idx]
+            # hash mapping
+            hash_values = get_hash_values(data[:, :3])
+            hash_mapping = get_hash_mapping(hash_values, original_idx)
+            with open(save_path_voxelized_original_idx, 'wb') as f:
+                pickle.dump(original_idx, f)
+            with open(save_path_hash_mapping, 'wb') as f:
+                pickle.dump(hash_mapping, f)
+            del hash_values, original_idx, hash_mapping
 
     # calculating features
     logger.info('calculating features...')
@@ -338,3 +345,43 @@ def save_treewise(coords, instance_preds, cluster_means_within_hull, insts_not_a
             save_data(pred_coord, save_format, str(int(i)), trunk_base_inside_dir, use_offset=False)
         elif not cluster_means_within_hull[i-1]:
             save_data(pred_coord, save_format, str(int(i)), trunk_base_outside_dir, use_offset=False)
+
+
+def get_hash_values(voxelized_points):
+    hash_values = []
+    for point in voxelized_points:
+        point_tuple = tuple(point)
+        hash_value = hash(point_tuple)
+        hash_values.append(hash_value)
+    return hash_values
+
+
+def get_hash_mapping(hash_values, original_idx):
+    hash_mapping = {}
+    for i, hash_value in enumerate(hash_values):
+        hash_mapping[hash_value] = original_idx[i]
+    return hash_mapping
+
+
+def propagate_preds_hash_full(coords, instance_preds, coords_to_return, hash_mapping):
+    coords = np.round(coords, 2)
+    hash_values = get_hash_values(coords)
+
+    target_preds = np.empty(coords_to_return.shape[0], np.int64)
+    not_yet_propagated = np.ones(coords_to_return.shape[0], np.bool)
+    for i, hash_value in enumerate(hash_values):
+        target_preds[np.array(hash_mapping[hash_value], np.int64)] = instance_preds[i]
+        not_yet_propagated[np.array(hash_mapping[hash_value], np.int64)] = False
+
+    return target_preds, not_yet_propagated
+
+
+def propagate_preds_hash_vox(coords, instance_preds, coords_to_return):
+    hash_values_original = np.array(get_hash_values(coords_to_return), np.int64)
+    hash_values_current = np.array(get_hash_values(np.round(coords, 2)), np.int64)
+    not_yet_propagated = ~np.isin(hash_values_original, hash_values_current)
+
+    mapping  = np.argsort(hash_values_current)[np.argsort(np.argsort(hash_values_original[~not_yet_propagated]))]
+    preds_to_return = np.empty(coords_to_return.shape[0], np.int64)
+    preds_to_return[~not_yet_propagated] = instance_preds[mapping]
+    return preds_to_return, not_yet_propagated
