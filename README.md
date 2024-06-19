@@ -15,6 +15,7 @@ For a quick demo of the capabilities of TreeLearn without any manual setup, we p
 
 ## Updates!!
 * 【2024/01/16】 Provide a new version of ``model_weights_diverse_training_data.pth`` (can be found [here](https://doi.org/10.25625/VPMPID)) that produces visually more appealing results.
+* 【2024/06/19】 Significant speed up of propagation of results to original point cloud.
 
 ## Setup
 
