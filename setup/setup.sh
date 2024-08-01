@@ -1,6 +1,6 @@
 
-ENV_NAME='TreeLearn_test'
-conda env remove -n $ENV_NAME
+ENV_NAME='TreeLearn'
+conda env remove -n $ENV_NAME -y
 conda create -n $ENV_NAME python=3.9 -y
 conda activate $ENV_NAME
 
