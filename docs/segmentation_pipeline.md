@@ -24,7 +24,7 @@ python tree_learn/util/download.py --dataset_name model_weights_with_small_20241
 * The point cloud file must be placed in ``data/pipeline/L1W/forest``
 * Change the argument 'forest_path' in the pipeline configuration at ``configs/pipeline/pipeline.yaml`` to ``data/pipeline/L1W/forest/L1W.laz``
 * We recommend retaining a buffer around the point cloud that is of interest. E.g. for an area of interest of 100 m x 100 m, retain a buffer of ~13.5 m to each side so that input is 127 m x 127 m.
-* The pipeline automatically removes the buffer which is only needed as context for network prediction. The xy-shape of the point cloud does not have to be square. Arbitrary shapes are allowed.
+* Optionally, the pipeline automatically removes the buffer which is only needed as context for network prediction. The xy-shape of the point cloud does not have to be square. Arbitrary shapes are allowed.
 
 *3\) Run segmentation pipeline*
 * To execute the segmentation pipeline, run the following command:
