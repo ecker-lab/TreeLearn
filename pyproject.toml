@@ -1,0 +1,6 @@
+[project]
+name = "tree_learn"
+version = "0.0.0"
+
+[tool.setuptools]
+packages = ["tree_learn"]
