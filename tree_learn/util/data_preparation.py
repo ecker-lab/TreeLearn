@@ -12,6 +12,8 @@ INSTANCE_LABEL_IGNORE_IN_RAW_DATA = -1 # label for unlabeled in raw data
 NON_TREE_CLASS_IN_RAW_DATA = 0 # label for non-trees in raw data
 
 
+# load point cloud data from .npy, .npz, .las, .laz or .txt file. Las files are expected to have treeID and classification attributes according to the For-Instance labeling convention (https://zenodo.org/records/8287792)
+# other file formats will just be loaded with the labels as they are. In this case -1 is used for unlabeled points and 0 for non-tree points. Trees should be labeled with integers > 0
 def load_data(path):
     assert path.endswith('npy') or path.endswith('npz') or path.endswith('las') or path.endswith('laz') or path.endswith('txt')
     if path.endswith('npy'):
@@ -35,7 +37,10 @@ def load_data(path):
             assert (tree_mask & non_tree_mask & unlabeled_mask).sum() == 0
 
             points = np.vstack((las_file.x, las_file.y, las_file.z)).T
-            points = points - las_file.header.offset
+            # note that this offset has nothing to do with the offset vector from the TreeLearn method. This offset here is simply for efficient storage of the data
+            # We ignore the z offset value when loading the data since cloud compare ignores it too --> consistent visualization
+            points = points - np.concatenate([las_file.header.offset[:2], np.array([0])]) # ignore z offset value since cloud compare ignores it too --> consistent visualization
+            # points = points - las_file.header.offset
             labels = np.ones(len(points))
             labels[tree_mask] = treeID[tree_mask]
             labels[non_tree_mask] = NON_TREE_CLASS_IN_RAW_DATA
@@ -43,7 +48,10 @@ def load_data(path):
             data = np.hstack([points, labels[:,np.newaxis]])
         else:
             data = np.vstack((las_file.x, las_file.y, las_file.z)).T
-            data = data - las_file.header.offset
+            # note that this offset has nothing to do with the offset vector from the TreeLearn method. This offset here is simply for efficient storage of the data
+            # We ignore the z offset value when loading the data since cloud compare ignores it too --> consistent visualization
+            data = data - np.concatenate([las_file.header.offset[:2], np.array([0])])
+            # data = data - las_file.header.offset
     elif path.endswith('txt'):
         data = pd.read_csv(path, delimiter=' ').to_numpy()
     
@@ -53,8 +61,10 @@ def load_data(path):
     return data
 
 
+# subsample data with voxel_size
 def voxelize(data, voxel_size):
     points = data[:, :3]
+    points = np.round(points, 2)
     if data.shape[1] >= 4:
         other = data[:, 3:]
 
@@ -70,10 +80,12 @@ def voxelize(data, voxel_size):
         data = np.hstack((np.asarray(downpcd.points), other))
     else:
         data = np.asarray(downpcd.points)
+    
     return data, idx
 
 
-def compute_features(points, search_radius=0.35, feature_names=['verticality'], num_threads=4):
+# calculate pointwise verticality feature (and optionally other features)
+def compute_features(points, search_radius=0.6, feature_names=['verticality'], num_threads=4):
     assert points.shape[1] == 3
     features = compute_features_jakteristics(points, search_radius=search_radius, num_threads=num_threads, feature_names=feature_names)
     features = replace_nanfeatures(features)
@@ -98,6 +110,7 @@ def replace_nanfeatures(features):
 ###################################################################################################################
 
 
+# This class is used to tile the data into smaller processable chunks. It is used both for random crop generation for training and for tile generation for inference
 class SampleGenerator:
     def __init__(self, plot_path, features_path, save_dir, n_neigh_sor, 
             multiplier_sor, rad, npoints_rad):
@@ -238,6 +251,10 @@ class SampleGenerator:
             inds = np.random.choice(range(len(vertices)), self.n_samples_plot, replace=False)
         else:
             inds = np.random.choice(range(len(vertices)), len(vertices), replace=False)
+        
+        if len(inds) == 0:
+            print(f'No valid candidates for plot {self.plot_name}')
+            return
         vertices = vertices[inds]
         rotation_angles = rotation_angles[inds]
         centers = centers[inds]
@@ -301,7 +318,7 @@ class SampleGenerator:
                 data['feat'] = feat_save
                 data['instance_label'] = instance_label_save.astype(np.int32)
                 data['center'] = center
-
+                
                 # saving
                 save_name_data = self.plot_name + '_' + str(chunk_counter) + '.npz'
                 save_path_data = os.path.join(self.save_dir_data, save_name_data)
@@ -427,7 +444,7 @@ class SampleGenerator:
             valid_chunks[i] = (torch.from_numpy(valid_chunks[i]).cuda() - torch.from_numpy(center).cuda()).cpu().numpy()
 
 
-        logger.info('denoise')
+        logger.info('save chunks')
         for i, valid_chunk in tqdm(enumerate(valid_chunks)):
 
             # denoise
@@ -483,7 +500,6 @@ class SampleGenerator:
 
 
 def get_ranges(points):
-
     x = points[...,0]
     y = points[...,1]
 
@@ -493,12 +509,10 @@ def get_ranges(points):
     ymax = np.max(y, axis=-1)
 
     rng = (np.hstack([xmin.reshape(-1, 1), xmax.reshape(-1, 1)]), np.hstack([ymin.reshape(-1, 1), ymax.reshape(-1, 1)]))
-
     return rng
 
 
 def rotate_vertices(rotation_angles, size):
-
     base_vertices = np.array([[size/2, size/2], 
                             [size/2, -size/2],
                             [-size/2, -size/2], 
@@ -514,20 +528,16 @@ def rotate_vertices(rotation_angles, size):
     rotation_matrices = np.transpose(rotation_matrices, (0, 2, 1))
 
     rotated_vertices = base_vertices @ rotation_matrices
-
     return rotated_vertices
 
 
 def shift_vertices(rotated_vertices, centers):
-
     centers = centers.reshape(-1, 1, 2)
     shifted_vertices = rotated_vertices + centers
-
     return shifted_vertices
 
 
 def invert_rotate_and_shift(view, rotation_angle, center):
-
     cosine = np.cos(rotation_angle).item()
     sine = np.sin(rotation_angle).item()
 
@@ -537,12 +547,10 @@ def invert_rotate_and_shift(view, rotation_angle, center):
 
     shifted_view = view - center
     rotated_and_shifted_view = shifted_view @ rotation_matrix.T
-
     return rotated_and_shifted_view
 
 
 def generate_views(arr, ranges_x, ranges_y):
-
     # make sure that enough is cut out (be generous)
     x_lower = ranges_x[:, 0] - 3
     x_upper = ranges_x[:, 1] + 3
@@ -555,7 +563,6 @@ def generate_views(arr, ranges_x, ranges_y):
                 (arr[:, 1][np.newaxis, ...] < y_upper[..., np.newaxis])
 
     views = [arr[filter] for filter in filters]
-
     return views
 
 
@@ -567,7 +574,6 @@ def adjust_res(range, res):
 
 
 def fill_holes(grid, how_far_fill, min_percent_occupied_fill):
-
     grid_new = grid.copy()
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
@@ -582,12 +588,10 @@ def fill_holes(grid, how_far_fill, min_percent_occupied_fill):
                 percent_occupied = n_occupied / (view.shape[0] * view.shape[1])
 
                 grid_new[i, j, 2] = percent_occupied >= min_percent_occupied_fill
-                
     return grid_new
 
 
 def sor_filter(chunk, n_neigh_sor, multiplier_sor):
-
     points = chunk[:, :3]
     assert len(points) > 0
     pcd = o3d.geometry.PointCloud()
@@ -602,7 +606,6 @@ def sor_filter(chunk, n_neigh_sor, multiplier_sor):
 
 
 def rad_filter(chunk, rad, npoints_rad):
-
     points = chunk[:, :3]
     assert len(points) > 0
     pcd = o3d.geometry.PointCloud()

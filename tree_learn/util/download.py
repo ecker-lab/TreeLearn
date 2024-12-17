@@ -41,9 +41,27 @@ class benchmark_dataset_voxelized:
     ]
 
 
+class benchmark_dataset_evaluation:
+    files = [
+        ["65Q3NW", "L1W_voxelized01_for_eval.laz"]
+    ]
+
+
 class model_weights_diverse_training_data:
     files = [
         ["1JMEQV", "model_weights_diverse_training_data.pth"]
+    ]
+
+
+class model_weights_20241213:
+    files = [
+        ["IMHF3G", "model_weights_20241213.pth"]
+    ]
+
+
+class model_weights_with_small_20241213:
+    files = [
+        ["TYZJ4E", "model_weights_with_small_20241213.pth"]
     ]
 
 
@@ -58,7 +76,10 @@ def get_ids(name):
         "automatically_segmented_data": automatically_segmented_data,
         "benchmark_dataset": benchmark_dataset,
         "benchmark_dataset_voxelized": benchmark_dataset_voxelized,
+        "benchmark_dataset_evaluation": benchmark_dataset_evaluation,
         "model_weights_diverse_training_data": model_weights_diverse_training_data,
+        "model_weights_20241213": model_weights_20241213,
+        "model_weights_with_small_20241213": model_weights_with_small_20241213,
         "evaluated_trees": evaluated_trees
     }
     

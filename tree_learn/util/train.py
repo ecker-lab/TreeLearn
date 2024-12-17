@@ -43,7 +43,7 @@ def cuda_cast(func):
     return wrapper
 
 
-def checkpoint_save(epoch, model, optimizer, work_dir, save_freq=16):
+def checkpoint_save(epoch, model, optimizer, work_dir, save_freq=1):
     if hasattr(model, 'module'):
         model = model.module
     f = os.path.join(work_dir, f'epoch_{epoch}.pth')
@@ -67,6 +67,7 @@ def load_checkpoint(checkpoint, logger, model, optimizer=None, strict=False):
         model = model.module
     device = torch.cuda.current_device()
     state_dict = torch.load(checkpoint, map_location=lambda storage, loc: storage.cuda(device))
+    #### in some other spconv version the input conv weight was permuted
     # if not (torch.equal(torch.tensor(state_dict['net']['input_conv.0.weight'].shape), torch.tensor([32, 3, 3, 3, 7]))):
     #     state_dict['net']['input_conv.0.weight'] = torch.permute(state_dict['net']['input_conv.0.weight'], (3, 0, 1, 2, 4))
     src_state_dict = state_dict['net']
@@ -120,59 +121,46 @@ def build_cosine_scheduler(cfg, optimizer):
                 t_in_epochs=cfg.t_in_epochs)
     return scheduler
 
-
-def build_dataloader(dataset, batch_size=1, num_workers=1, training=True):
+        
+def build_dataloader(dataset, batch_size=1, num_workers=1, training=True, dist=False):
     shuffle = training
     sampler = None
-    
-    if sampler is not None:
+    if dist and training:
+        sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         shuffle = False
-    if training:
-        return DataLoader(
-            dataset,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            collate_fn=dataset.collate_fn,
-            shuffle=shuffle,
-            sampler=sampler,
-            drop_last=True,
-            pin_memory=True)
-    else:
-        return DataLoader(
-            dataset,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            collate_fn=dataset.collate_fn,
-            shuffle=False,
-            sampler=sampler,
-            drop_last=False,
-            pin_memory=True)
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        collate_fn=dataset.collate_fn,
+        shuffle=shuffle if sampler is None else False,
+        sampler=sampler,
+        drop_last=training,
+        pin_memory=True
+    )
 
 
+# loss functions for semantic and offset prediction
 @cuda_cast
-def point_wise_loss(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, n_points=None):
-
-    if n_points is not None and len(offset_predictions) >= n_points:
-        permuted_indices_sem = torch.randperm(len(semantic_prediction_logits))
-        permuted_indices_off = torch.randperm(len(offset_predictions))
-        ind_sem = permuted_indices_sem[:n_points]
-        ind_off = permuted_indices_off[:n_points]
+def point_wise_loss(semantic_prediction_logits, offset_predictions, masks_sem, masks_off, semantic_labels, offset_labels, weights=None):
+    if masks_sem.sum() == 0:
+        semantic_loss = 0 * semantic_prediction_logits.sum()
     else:
-        ind_sem = torch.arange(len(semantic_prediction_logits))
-        ind_off = torch.arange(len(offset_predictions))
-
-    if len(semantic_prediction_logits) == 0:
-        semantic_loss = 0 * semantic_labels.sum()
-    else:
+        if weights is None:
+            # semantic_loss
+            semantic_loss = F.cross_entropy(
+                semantic_prediction_logits[masks_sem], semantic_labels[masks_sem], reduction='sum') / len(semantic_prediction_logits[masks_sem])
+        else:
         # semantic_loss
-        semantic_loss = F.cross_entropy(
-            semantic_prediction_logits[ind_sem], semantic_labels[ind_sem], reduction='sum') / len(semantic_prediction_logits[ind_sem])
+            semantic_loss = (F.cross_entropy(
+                semantic_prediction_logits[masks_sem], semantic_labels[masks_sem], reduction='none') * weights).sum() / len(semantic_prediction_logits[masks_sem])
         
-    if len(offset_predictions) == 0:
+    if masks_off.sum() == 0:
         offset_loss = 0 * offset_predictions.sum()
     else:
         # offset loss
-        offset_losses = (offset_predictions[ind_off] - offset_labels[ind_off]).pow(2).sum(1).sqrt()
+        offset_losses = (offset_predictions[masks_off] - offset_labels[masks_off]).pow(2).sum(1).sqrt()
         offset_loss = offset_losses.mean()
 
     return semantic_loss, offset_loss

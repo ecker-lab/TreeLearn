@@ -8,6 +8,7 @@ def get_args(args):
     parser.add_argument('--config', type=str, help='path to config file')
     parser.add_argument('--resume', type=str, help='path to resume from')
     parser.add_argument('--work_dir', type=str, help='working directory')
+    parser.add_argument('--dist', action='store_true', help='distributed training')
     if args is None:
         args = parser.parse_args()
     else:

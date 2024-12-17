@@ -3,17 +3,12 @@ import spconv.pytorch as spconv
 import torch
 import torch.nn as nn
 from spconv.pytorch.utils import PointToVoxel
-
 from .blocks import MLP, ResidualBlock, UBlock
 from tree_learn.util.train import cuda_cast, point_wise_loss
 
 LOSS_MULTIPLIER_SEMANTIC = 50 # multiply semantic loss for similar magnitude with offset loss
-N_POINTS = None # only calculate loss for specified number of randomly sampled points; use all points if set to None
-
-
 
 class TreeLearn(nn.Module):
-
     def __init__(self,
                  channels=32,
                  num_blocks=7,
@@ -108,17 +103,31 @@ class TreeLearn(nn.Module):
         return output
 
 
-    def get_loss(self, model_output, semantic_labels, offset_labels, masks_off, masks_sem, **kwargs):
+    @cuda_cast
+    def get_loss(self, model_output, semantic_labels, offset_labels, masks_off, masks_sem, coords, batch_ids, **kwargs):
         loss_dict = dict()
-        semantic_loss, offset_loss = point_wise_loss(model_output['semantic_prediction_logits'][masks_sem].float(), model_output['offset_predictions'][masks_off].float(), 
-                                                            semantic_labels[masks_sem], offset_labels[masks_off], n_points=N_POINTS)
+        
+        # Define variables
+        semantic_prediction_logits = model_output['semantic_prediction_logits'].float()
+        offset_predictions = model_output['offset_predictions'].float()
+        # semantic_prediction_logits = model_output['semantic_prediction_logits'][masks_sem].float()
+        # semantic_labels = semantic_labels[masks_sem]
+        # offset_labels = offset_labels[masks_off].float()
+        # offset_predictions = model_output['offset_predictions'][masks_off].float()
+        
+        # semantic and offset losses
+        semantic_loss, offset_loss = point_wise_loss(
+            semantic_prediction_logits,
+            offset_predictions, 
+            masks_sem, masks_off,
+            semantic_labels, offset_labels
+        )
         loss_dict['semantic_loss'] = semantic_loss * LOSS_MULTIPLIER_SEMANTIC
         loss_dict['offset_loss'] = offset_loss
 
+        # Sum all losses
         loss = sum(_value for _value in loss_dict.values())
         return loss, loss_dict
-
-
 
 
 def voxelize(feats, batch_ids, batch_size, voxel_size, use_coords, use_feats, max_num_points_per_voxel, epsilon=1):

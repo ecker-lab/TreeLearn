@@ -39,22 +39,15 @@ class TreeDataset(Dataset):
         # get entries
         xyz = data['points']
         input_feat = data['feat']
-        verticality = input_feat[:, -1] # verticality feature computed in last column of data['feat']
 
         instance_label = data['instance_label']
         semantic_label = np.empty(len(instance_label))
         semantic_label[instance_label == NON_TREE_CLASS_IN_RAW_DATA] = NON_TREE_CLASS_IN_PYTORCH_DATASET
         semantic_label[instance_label != NON_TREE_CLASS_IN_RAW_DATA] = TREE_CLASS_IN_PYTORCH_DATASET
 
-        # get masks for loss calculation
-        mask_inner = self.get_mask_inner(xyz)
-        mask_not_ignore = self.get_mask_not_ignore(instance_label)
-        mask_off = mask_inner & mask_not_ignore & (semantic_label != NON_TREE_CLASS_IN_PYTORCH_DATASET)
-        mask_sem = mask_inner & mask_not_ignore
-        
-        # get center of chunk (only for test)
+        # get center of chunk (used for stitching tiles back together)
         if self.training:
-            center = np.ones_like(xyz) # dummy value in training (used for stitching tiles back together)
+            center = np.ones_like(xyz) # dummy value in training
         else:
             center = np.ones_like(xyz) * data['center']
 
@@ -62,7 +55,13 @@ class TreeDataset(Dataset):
         xyz = self.transform_train(xyz) if self.training else self.transform_test(xyz)
 
         # get offset
-        pt_offset_label = self.getOffset(xyz, instance_label, semantic_label, verticality)
+        pt_offset_label, mask_valid_offset = self.getOffset(xyz, instance_label, semantic_label)
+        
+        # get masks for loss calculation
+        mask_inner = self.get_mask_inner(xyz)
+        mask_not_ignore = self.get_mask_not_ignore(instance_label)
+        mask_off = mask_inner & mask_not_ignore & (semantic_label != NON_TREE_CLASS_IN_PYTORCH_DATASET) & mask_valid_offset
+        mask_sem = mask_inner & mask_not_ignore
 
         xyz = torch.from_numpy(xyz)
         instance_label = torch.from_numpy(instance_label)
@@ -90,16 +89,15 @@ class TreeDataset(Dataset):
         return mask_inner
 
 
-    def point_jitter(self, points, sigma=0.04, clip=0.1):
+    def point_jitter(self, points, sigma=0.1, clip=0.2):
         jitter = np.clip(sigma * np.random.randn(points.shape[0], 3), -1 * clip, clip)
         points += jitter
         return points
 
 
-    def transform_train(self, xyz, aug_prob=0.6):
-
+    def transform_train(self, xyz, aug_prob=0.5, aug_prob_point_jitter=0.25):
         if self.data_augmentations["point_jitter"] == True:
-            if np.random.random() <= aug_prob:
+            if np.random.random() <= aug_prob_point_jitter:
                 xyz = self.point_jitter(xyz)
         xyz = self.dataAugment(xyz, data_augmentations=self.data_augmentations, prob=aug_prob)
         return xyz
@@ -109,11 +107,11 @@ class TreeDataset(Dataset):
         return xyz
 
 
-    def getOffset(self, xyz, instance_label, semantic_label, verticality, verticality_thresh=0.6, target_z=3):
-
-        mask_vert = np.squeeze(verticality > verticality_thresh)
+    # unlike stated in the paper, we simply use the mean of the lowest 0.5m of the tree points as the tree base here
+    def getOffset(self, xyz, instance_label, semantic_label):
         position = np.ones_like(xyz, dtype=np.float32)
         instances = np.unique(instance_label)
+        mask_valid_offset = np.zeros_like(instance_label, dtype=bool)
 
         for instance in instances:
             inst_idx = np.where(instance_label == instance)
@@ -122,28 +120,24 @@ class TreeDataset(Dataset):
             if semantic_label[first_idx] != NON_TREE_CLASS_IN_PYTORCH_DATASET:
                 tree_points = xyz[inst_idx]
                 if len(tree_points[:, 2]) > 11:
-                    min_z = np.partition(tree_points[:, 2], 10)[10]
+                    min_z = np.partition(tree_points[:, 2], 10)[3] # select 3rd lowest point as regualrization to avoid outliers
                 else:
                     min_z = tree_points[:, 2].min()
 
-                tree_mask_vert = mask_vert[inst_idx]
-                tree_points = tree_points[tree_mask_vert]
-                
-                z_thresh_lower = min_z + target_z - 0.25
-                z_thresh_upper = min_z + target_z + 0.25
-                mask_thresh_lower = tree_points[:, 2] >= z_thresh_lower
-                mask_thresh_upper = tree_points[:, 2] <= z_thresh_upper
+                z_thresh_upper = min_z + 0.5
+                mask_thres_upper = tree_points[:, 2] <= z_thresh_upper
 
-                tree_points_of_interest = tree_points[mask_thresh_lower & mask_thresh_upper]
+                tree_points_of_interest = tree_points[mask_thres_upper]
                 if len(tree_points_of_interest) > 0:
                     position_instance = np.mean(tree_points_of_interest, axis=0)
+                    mask_valid_offset[inst_idx] = True
                 else:
                     position_instance = np.array([0, 0, 0])
 
                 position[inst_idx] = position_instance
 
         pt_offset_label = position - xyz
-        return pt_offset_label
+        return pt_offset_label, mask_valid_offset
 
 
     def dataAugment(self, xyz, data_augmentations, prob=0.6):
@@ -155,7 +149,7 @@ class TreeDataset(Dataset):
 
         if scale and np.random.rand() < prob:
             scale_xy = np.random.uniform(0.8, 1.2, 2)
-            scale_z = np.random.uniform(0.8, 1, 1)
+            scale_z = np.random.uniform(0.95, 1.05, 1)
             scale = np.concatenate([scale_xy, scale_z])
             m = m * scale
         if jitter and np.random.rand() < prob:
@@ -217,7 +211,6 @@ class TreeDataset(Dataset):
         pt_offset_labels = torch.cat(pt_offset_labels, 0).float()
         centers = torch.cat(centers, 0).float()
         
-
         return {
             'coords': xyzs,
             'input_feats': input_feats,
