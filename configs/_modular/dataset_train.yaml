@@ -1,10 +1,10 @@
 dataset_train:
   training: True # True if dataset used for training; False if used for validation
   data_root: 'data/train/random_crops/npz' # folder where crops for model training are located
-  data_augmentations:
+  data_augmentations: # list of aumgentations to be used during training
     jitter: True
     flip: True
     rot: True
-    scaled: False
-    point_jitter: False
-  inner_square_edge_length: 8 # Length of inner square to be used for training. E.g. if tiles/crops are 30mx30m, this indicates that only inner 8x8 is taken into account
+    scaled: True
+    point_jitter: True
+  inner_square_edge_length: 8 # Length of inner square to be used for training. E.g. if tiles/crops are 30mx30m, this indicates that only inner 8x8 is taken into account (see paper for details)

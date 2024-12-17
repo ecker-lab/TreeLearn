@@ -1,6 +1,7 @@
-grouping:
+grouping: # see paper for details on these hyperparameters
   tree_conf_thresh: 0.5 # minimum confidence (with regard to semantic prediction) for a point to be predicted as belonging to trees. Only predicted tree points are used during clustering
   tau_vert: 0.6 # minimum verticality for a point to be considered during clustering
-  tau_off: 2 # maximum distance from the tree base for a point to be considered during clustering
+  tau_off: 4 # maximum distance from the tree base for a point to be considered during clustering
   tau_group: 0.15 # grouping radius of offset-shifted coordinates for clustering
-  tau_min: 100 # After grouping, clusters containing less points than this are discarded immediately since they are deemed to small to be a tree
+  tau_min: 50 # After grouping, clusters containing less points than this are discarded immediately since they are deemed to small to be a tree
+  

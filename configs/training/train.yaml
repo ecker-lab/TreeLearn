@@ -17,19 +17,19 @@ dataloader:
 
 optimizer:
   type: 'AdamW'
-  lr: 0.002
+  lr: 0.003
   weight_decay: 0.001
 
 scheduler: # learning rate scheduler arguments (see https://timm.fast.ai/schedulers for details)
-  t_initial: 1300
-  lr_min: 0.0001
+  t_initial: 1000
+  lr_min: 0.00005
   cycle_decay: 1
   warmup_lr_init: 0.00001
   warmup_t: 50
   cycle_limit: 1
   t_in_epochs: True
 
-epochs: 1400 # number of epochs to train
+epochs: 1000 # number of epochs to train
 examples_per_epoch: 500 # number of crops to use per epoch
 fp16: True # using half precision for network prediction
 pretrain: 'data/model_weights/hais_ckpt_spconv2.pth' # path to pretrained network parameters, set to ~ if not using pretrain
