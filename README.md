@@ -9,8 +9,8 @@ The paper can be found [here](https://www.sciencedirect.com/science/article/pii/
 ## Updates!! 🚀
 * 【2024/01/16】 Provide a new version of ``model_weights_diverse_training_data.pth`` that produces visually more appealing results.
 * 【2024/06/19】 Faster algorithm for propagation of results to original point cloud (speeds up inference⚡).
-* 【2024/12/04】 📊 Updated evaluation script so that the evaluation protocol from the paper can be run with arbitrary methods and forest point clouds.
-* 【2024/12/04】 🆕 Added new model weights that were trained on crops without statistical outlier filtering (speeds up inference⚡).
+* 【2024/17/04】 📊 Updated evaluation script so that the evaluation protocol from the paper can be run with arbitrary methods and forest point clouds.
+* 【2024/17/04】 🆕 Added new model weights that were trained on crops without statistical outlier filtering (speeds up inference⚡).
 
 ## Demo [Currently non-functional]
 For a quick demo of the capabilities of TreeLearn without any manual setup, we prepared a google colab notebook: 
