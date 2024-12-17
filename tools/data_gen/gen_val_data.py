@@ -1,8 +1,5 @@
 import os 
 import os.path as osp
-from tqdm import tqdm
-import os.path as osp
-import numpy as np
 import argparse
 from tree_learn.util import get_root_logger, get_config, generate_tiles
 

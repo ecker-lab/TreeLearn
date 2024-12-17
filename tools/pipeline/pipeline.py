@@ -27,7 +27,10 @@ def run_treelearn_pipeline(config, config_path=None):
     unvoxelized_data_dir = os.path.join(base_dir, 'forest')
     voxelized_data_dir = os.path.join(base_dir, f'forest_voxelized{config.sample_generation.voxel_size}')
     tiles_dir = os.path.join(base_dir, 'tiles')
-    results_dir = os.path.join(base_dir, 'results')
+    
+    results_dir_name = getattr(config.save_cfg, 'results_dir', 'results')
+    results_dir = os.path.join(base_dir, results_dir_name)
+    
     os.makedirs(documentation_dir, exist_ok=True)
     os.makedirs(unvoxelized_data_dir, exist_ok=True)
     os.makedirs(voxelized_data_dir, exist_ok=True)
@@ -64,8 +67,8 @@ def run_treelearn_pipeline(config, config_path=None):
 
     # get mask of inner coords if outer points should be removed
     if config.shape_cfg.outer_remove:
-        logger.info(f'{plot_name}: #################### remove outer points ####################')
-        hull_buffer_large = get_hull_buffer(coords, config.shape_cfg.alpha, buffersize=config.shape_cfg.outer_remove)
+        logger.info(f'{plot_name}: #################### prepare remove outer points ####################')
+        hull_buffer_large = get_hull_buffer(coords[:, :2], config.shape_cfg.alpha, buffersize=config.shape_cfg.outer_remove)
         mask_coords_within_hull_buffer_large = get_coords_within_shape(coords, hull_buffer_large)
         masks_inner_coords = np.logical_not(mask_coords_within_hull_buffer_large)
 
@@ -77,7 +80,7 @@ def run_treelearn_pipeline(config, config_path=None):
     # assign remaining points
     tree_mask = instance_preds != NON_TREES_LABEL_IN_GROUPING
     instance_preds[tree_mask] = assign_remaining_points_nearest_neighbor(coords[tree_mask] + offset_predictions[tree_mask], instance_preds[tree_mask], NOT_ASSIGNED_LABEL_IN_GROUPING)
-
+    
     # save pointwise results
     if config.save_cfg.save_pointwise:
         pointwise_dir = os.path.join(results_dir, 'pointwise_results')
@@ -97,17 +100,32 @@ def run_treelearn_pipeline(config, config_path=None):
         if config.shape_cfg.outer_remove:
             pointwise_results['masks_inner_coords'] = masks_inner_coords
             hull_buffer_large.to_pickle(os.path.join(pointwise_dir, 'hull_buffer_large.pkl'))
-        
         np.savez_compressed(os.path.join(pointwise_dir, 'pointwise_results.npz'), **pointwise_results)
+        
+        # offset-shifted coordinates filtered by verticality and offset (initial clustering results); save as laz file for visualization
+        verticality = input_feats[:, -1]
+        verticality_mask = verticality >= config.grouping.tau_vert
+        offset_mask = np.abs(offset_predictions[:, 2]) <= config.grouping.tau_off
+        sem_mask = instance_preds != NON_TREES_LABEL_IN_GROUPING
+        mask = verticality_mask & offset_mask & sem_mask
+        cluster_coords = coords[mask] + offset_predictions[mask]
+        cluster_coords = np.hstack([cluster_coords, instance_preds[mask].reshape(-1, 1)])
+        save_data(cluster_coords, 'laz', 'cluster_coords_initial', pointwise_dir)
+        
+        # complete offset-shifted coordinates with instance predictions (clustering results after assigning remaining points); save as laz file for visualization
+        cluster_coords = coords + offset_predictions
+        cluster_coords = cluster_coords[instance_preds != NON_TREES_LABEL_IN_GROUPING]
+        cluster_coords = np.hstack([cluster_coords, instance_preds[instance_preds != NON_TREES_LABEL_IN_GROUPING].reshape(-1, 1)])
+        save_data(cluster_coords, 'laz', 'cluster_coords', pointwise_dir)
 
     # remove outer points with buffer
     if config.shape_cfg.outer_remove:
-        coords, semantic_prediction_logits, semantic_labels, offset_predictions, offset_labels, instance_labels, instance_preds = \
+        coords, semantic_prediction_logits, semantic_labels, offset_predictions, offset_labels, instance_labels, instance_preds, input_feats = \
             coords[masks_inner_coords], semantic_prediction_logits[masks_inner_coords], \
             semantic_labels[masks_inner_coords], offset_predictions[masks_inner_coords], \
             offset_labels[masks_inner_coords], instance_labels[masks_inner_coords], \
-            instance_preds[masks_inner_coords]
-        instance_preds[instance_preds != NON_TREES_LABEL_IN_GROUPING] = make_labels_consecutive(instance_preds[instance_preds != NON_TREES_LABEL_IN_GROUPING], start_num=1)
+            instance_preds[masks_inner_coords], input_feats[masks_inner_coords]
+        instance_preds[instance_preds != NON_TREES_LABEL_IN_GROUPING], _ = make_labels_consecutive(instance_preds[instance_preds != NON_TREES_LABEL_IN_GROUPING], start_num=1)
 
     # get information whether tree clusters are within or outside hull (used for saving tree in different categories later)
     if config.save_cfg.save_treewise:
@@ -117,14 +135,14 @@ def run_treelearn_pipeline(config, config_path=None):
         cluster_means_within_hull = get_coords_within_shape(cluster_means, hull)
 
         # get information whether trees have points very close to hull (used for saving trees in different categories later)
-        hull_buffer_small = get_hull_buffer(coords, config.shape_cfg.alpha, buffersize=config.shape_cfg.buffer_size_to_determine_edge_trees)
+        hull_buffer_small = get_hull_buffer(coords[:, :2], config.shape_cfg.alpha, buffersize=config.shape_cfg.buffer_size_to_determine_edge_trees)
         mask_coords_at_edge = get_coords_within_shape(coords, hull_buffer_small)
         instance_preds_at_edge = np.unique(instance_preds[mask_coords_at_edge])
         instance_preds_at_edge = np.delete(instance_preds_at_edge, np.where(instance_preds_at_edge == NON_TREES_LABEL_IN_GROUPING))
         insts_not_at_edge = np.ones(len(cluster_means_within_hull))
         insts_not_at_edge[instance_preds_at_edge-1] = 0
         insts_not_at_edge = insts_not_at_edge.astype('bool')
-
+        
     # propagate predictions to original forest
     if config.save_cfg.return_type == 'original':
         logger.info(f'{plot_name}: Propagating predictions to original points')
@@ -133,30 +151,25 @@ def run_treelearn_pipeline(config, config_path=None):
         with open(hash_mapping_path, 'rb') as pickle_file:
             hash_mapping = pickle.load(pickle_file)
         preds_to_return, not_yet_propagated = propagate_preds_hash_full(coords, instance_preds, coords_to_return, hash_mapping)
-        if config.shape_cfg.outer_remove:
-            mask_coords_to_return_within_hull_buffer_large = get_coords_within_shape(coords_to_return, hull_buffer_large)
-            masks_inner_coords_to_return = np.logical_not(mask_coords_to_return_within_hull_buffer_large)
-            coords_to_return = coords_to_return[masks_inner_coords_to_return]
-            preds_to_return = preds_to_return[masks_inner_coords_to_return]
-            not_yet_propagated = not_yet_propagated[masks_inner_coords_to_return]
-        if not_yet_propagated.any():
-            preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
     elif config.save_cfg.return_type == 'voxelized':
         logger.info(f'{plot_name}: Propagating predictions to voxelized points')
         voxelized_forest_path = os.path.join(voxelized_data_dir, f'{plot_name}.npz')
         coords_to_return = load_data(voxelized_forest_path)[:, :3]
         preds_to_return, not_yet_propagated = propagate_preds_hash_vox(coords, instance_preds, coords_to_return)
-        if config.shape_cfg.outer_remove:
-            mask_coords_to_return_within_hull_buffer_large = get_coords_within_shape(coords_to_return, hull_buffer_large)
-            masks_inner_coords_to_return = np.logical_not(mask_coords_to_return_within_hull_buffer_large)
-            coords_to_return = coords_to_return[masks_inner_coords_to_return]
-            preds_to_return = preds_to_return[masks_inner_coords_to_return]
-            not_yet_propagated = not_yet_propagated[masks_inner_coords_to_return]
-        if not_yet_propagated.any():
-            preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
-    elif config.save_cfg.return_type == 'voxelized_and_filtered':
+    elif config.save_cfg.return_type == 'voxelized_and_filtered': # 'voxelized_and_filtered' is identical to 'voxelized' if no point filtering is specified in configs/_modular/sample_generation.yaml
         coords_to_return = coords
         preds_to_return = instance_preds
+        not_yet_propagated = np.zeros(len(coords_to_return), dtype=bool)
+    # optionally remove outer points
+    if config.shape_cfg.outer_remove:
+        mask_coords_to_return_within_hull_buffer_large = get_coords_within_shape(coords_to_return, hull_buffer_large)
+        masks_inner_coords_to_return = np.logical_not(mask_coords_to_return_within_hull_buffer_large)
+        coords_to_return = coords_to_return[masks_inner_coords_to_return]
+        preds_to_return = preds_to_return[masks_inner_coords_to_return]
+        not_yet_propagated = not_yet_propagated[masks_inner_coords_to_return]
+    # propagate predictions to points that were not yet propagated
+    if not_yet_propagated.any():
+        preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
         
     # save
     logger.info(f'{plot_name}: #################### Saving ####################')

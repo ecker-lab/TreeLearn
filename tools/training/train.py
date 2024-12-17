@@ -1,22 +1,19 @@
 import os.path as osp
 import time
 import torch
-import torch.nn.parallel
 import tqdm
 import numpy as np
 import time
 from collections import defaultdict
 from tree_learn.util import (checkpoint_save, init_train_logger, load_checkpoint,
                             is_multiple, get_args_and_cfg, build_cosine_scheduler, build_optimizer,
-                            point_wise_loss, get_eval_res_components, get_segmentation_metrics, build_dataloader)
+                            point_wise_loss, get_eval_components, build_dataloader)
 from tree_learn.model import TreeLearn
 from tree_learn.dataset import TreeDataset
 
 TREE_CLASS_IN_DATASET = 0 # semantic label for tree class in pytorch dataset
 NON_TREE_CLASS_IN_DATASET = 1 # semantic label for non-tree class in pytorch dataset
 TREE_CONF_THRESHOLD = 0.5 # minimum confidence for tree prediction
-
-
 
 
 def train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logger, writer):
@@ -46,6 +43,7 @@ def train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logg
         scaler.step(optimizer)
         scaler.update()
 
+    # log and write to tensorboard
     epoch_time = time.time() - start
     lr = optimizer.param_groups[0]['lr']
     writer.add_scalar('train/learning_rate', lr, epoch)
@@ -78,42 +76,35 @@ def validate(config, epoch, model, val_loader, logger, writer):
             coords.append(batch['coords'][batch['masks_sem']]), 
             instance_labels.append(batch['instance_labels'][batch['masks_sem']])
 
+    # concatenate all batches
     semantic_prediction_logits, semantic_labels = torch.cat(semantic_prediction_logits, 0), torch.cat(semantic_labels, 0)
     offset_predictions, offset_labels = torch.cat(offset_predictions, 0), torch.cat(offset_labels, 0)
     coords, instance_labels = torch.cat(coords, 0), torch.cat(instance_labels).cpu().numpy()
 
-    # split valset into 2 parts along y=0
-    mask_y_greater_zero = coords[:, 1] > 0
-    mask_y_not_greater_zero = torch.logical_not(mask_y_greater_zero)
+    # evaluate semantic and offset predictions
+    pointwise_eval(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels,
+                          config, epoch, writer, logger)
 
-    # pointwise eval y_greater_zero
-    pointwise_eval(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, 
-                          config, epoch, writer, logger, 'full')
+
+def pointwise_eval(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, config, epoch, writer, logger):
+    # get offset loss
+    masks_sem = torch.ones_like(semantic_labels).bool()
+    masks_off = semantic_labels == TREE_CLASS_IN_DATASET
+    _, offset_loss = point_wise_loss(semantic_prediction_logits.float(), offset_predictions.float(), 
+                                      masks_sem, masks_off, semantic_labels, offset_labels)
     
-    pointwise_eval(semantic_prediction_logits[mask_y_greater_zero], offset_predictions[mask_y_greater_zero], semantic_labels[mask_y_greater_zero], offset_labels[mask_y_greater_zero], 
-                          config, epoch, writer, logger, 'y_greater_zero')
-
-    pointwise_eval(semantic_prediction_logits[mask_y_not_greater_zero], offset_predictions[mask_y_not_greater_zero], semantic_labels[mask_y_not_greater_zero], offset_labels[mask_y_not_greater_zero], 
-                          config, epoch, writer, logger, 'y_not_greater_zero')
-
-
-def pointwise_eval(semantic_prediction_logits, offset_predictions, semantic_labels, offset_labels, config, epoch, writer, logger, eval_name):
-    _, offset_loss = point_wise_loss(semantic_prediction_logits.float(), offset_predictions[semantic_labels != NON_TREE_CLASS_IN_DATASET].float(), 
-                                                    semantic_labels, offset_labels[semantic_labels != NON_TREE_CLASS_IN_DATASET])
+    # get semantic accuracy of classification into tree and non-tree
     semantic_prediction_logits, semantic_labels = semantic_prediction_logits.cpu().numpy(), semantic_labels.cpu().numpy()
-    
     tree_pred_mask = torch.from_numpy(semantic_prediction_logits).float().softmax(dim=-1)[:, TREE_CLASS_IN_DATASET] >= TREE_CONF_THRESHOLD
     tree_pred_mask = tree_pred_mask.numpy()
     tree_mask = semantic_labels == TREE_CLASS_IN_DATASET
+    tp, fp, tn, fn = get_eval_components(tree_pred_mask, tree_mask)
+    acc = (tp + tn) / (tp + fp + fn + tn)
 
-    tp, fp, tn, fn = get_eval_res_components(tree_pred_mask, tree_mask)
-    segmentation_res = get_segmentation_metrics(tp, fp, tn, fn)
-    acc, prec, rec, f1, fdr, fnr, one_minus_f1, iou, fp_error_rate, fn_error_rate, error_rate = segmentation_res
-
-    writer.add_scalar(f'{eval_name}/acc', acc if not np.isnan(acc) else 0, epoch)
-    writer.add_scalar(f'{eval_name}/Offset_MAE', offset_loss, epoch)
-
-    logger.info(f'[VALIDATION] [{epoch}/{config.epochs}] {eval_name}/semantic_acc {acc*100:.2f}, {eval_name}/offset_loss {offset_loss.item():.3f}')
+    # log and write to tensorboard
+    logger.info(f'[VALIDATION] [{epoch}/{config.epochs}] val/semantic_acc {acc*100:.2f}, val/offset_loss {offset_loss.item():.3f}')
+    writer.add_scalar(f'val/acc', acc if not np.isnan(acc) else 0, epoch)
+    writer.add_scalar(f'val/Offset_MAE', offset_loss, epoch)
 
 
 def main():
@@ -122,7 +113,6 @@ def main():
 
     # training objects
     model = TreeLearn(**config.model).cuda()
-    
     optimizer = build_optimizer(model, config.optimizer)
     scheduler = build_cosine_scheduler(config.scheduler, optimizer)
     scaler = torch.cuda.amp.GradScaler(enabled=config.fp16)
@@ -143,15 +133,13 @@ def main():
     # train and val
     logger.info('Training')
     for epoch in range(start_epoch, config.epochs + 1):
-
         train(config, epoch, model, optimizer, scheduler, scaler, train_loader, logger, writer)
         if is_multiple(epoch, config.validation_frequency):
             optimizer.zero_grad()
             logger.info('Validation')
+            torch.cuda.empty_cache()
             validate(config, epoch, model, val_loader, logger, writer)
         writer.flush()
-
-
 
 
 if __name__ == '__main__':
