@@ -3,6 +3,7 @@
 *.lo
 *.o
 *.cuo
+__pycache__/
 
 # Compiled Dynamic libraries
 *.so
@@ -51,24 +52,14 @@
 # OSX dir files
 .DS_Store
 
-# personal
-__pycache__/
-exp/
+# package creation
 *.egg-info/
-build/
-dist/
 
+# large files
+work_dirs
+data
 *.tsv
 *.npy
 *.zip
 *.pth
 *.pt
-
-# large files
-work_dirs
-data
-dataset
-data_archive_TreeLearn
-
-# private folder
-private
