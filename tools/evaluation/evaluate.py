@@ -58,7 +58,7 @@ def evaluate(config, config_path=None):
     unique_instance_labels = np.arange(np.max(gt_forest_instance_labels) + 1)
     unique_instance_preds = np.arange(np.max(instance_preds) + 1)
     detection_failures = get_detection_failures(matched_gts, matched_preds, unique_instance_labels, unique_instance_preds, iou_matrix, precision_matrix, recall_matrix, 
-                                                config.thresholds.min_precision_for_oversegmentation, config.thresholds.min_recall_for_undersegmentation)
+                                                config.thresholds.min_precision_for_pred, config.thresholds.min_recall_for_gt)
     non_matched_gts, non_matched_preds, non_matched_preds_corresponding_gt, non_matched_gts_corresponding_pred, non_matched_gts_corresponding_other_tree = detection_failures
     
     ################################## GETTING SEGMENTATION RESULTS
@@ -81,7 +81,7 @@ def evaluate(config, config_path=None):
     # non matched preds and information related to them
     non_matched_preds = np.array([mapping_to_original_pred_nums[label] for label in non_matched_preds])
     non_matched_preds_corresponding_gt = np.array([mapping_to_original_gt_nums[label] if not np.isnan(label) else np.nan for label in non_matched_preds_corresponding_gt])
-    non_matched_preds_filtered = np.array([pred for pred, gt in zip(non_matched_preds, non_matched_preds_corresponding_gt) if not np.isnan(gt)]) # filter non_matched_preds to only include cases of oversegmentation (see eval section in paper)
+    non_matched_preds_filtered = np.array([pred for pred, gt in zip(non_matched_preds, non_matched_preds_corresponding_gt) if not np.isnan(gt)]) # filter non_matched_preds (see eval section in paper)
     non_matched_preds_corresponding_gt_filtered = np.array([gt for gt in non_matched_preds_corresponding_gt if not np.isnan(gt)]) # apply same filtering
     # non matched gts and information related to them
     non_matched_gts = np.array([mapping_to_original_gt_nums[label] for label in non_matched_gts])

@@ -31,10 +31,9 @@ def get_detections(instance_labels, instance_preds, min_iou_match, non_tree_labe
     return matched_gts, matched_preds, iou_matrix, precision_matrix, recall_matrix
 
 
-################################## Instance detection evaluation: get non matched gts and preds as well as additional info for non matched preds and gts 
-# this additional info can be used to identify cases of oversegmentation and undersegmentation
+################################## Instance detection evaluation: get non matched gts and preds as well as additional info them for visualization of errors
 def get_detection_failures(matched_gts, matched_preds, unique_instance_labels, unique_instance_preds, iou_matrix, 
-                           precision_matrix, recall_matrix, min_precision_for_oversegmentation, min_recall_for_undersegmentation):
+                           precision_matrix, recall_matrix, min_precision_for_pred, min_recall_for_gt):
     ################## get non matched preds and gts
     assert (iou_matrix[matched_preds, matched_gts] > 0).sum() == len(matched_preds), 'a zero iou correspondence has been matched'
     non_matched_preds = np.array(list(set(unique_instance_preds) - set(matched_preds))).astype(np.int64)
@@ -43,34 +42,34 @@ def get_detection_failures(matched_gts, matched_preds, unique_instance_labels, u
     ################## get additional info for non matched preds
     non_matched_preds_corresponding_gt = []
     for non_matched_pred in non_matched_preds:
-        # at least min_precision_for_oversegmentation percent of a non-matched pred should belong to gts in order to be considered as oversegmentation. 
+        # at least min_precision_for_pred percent of a non-matched pred should belong to gts in order to be considered as a commission error.
         # Otherwise it might be a detection of an unlabeled tree or bush, which is not counted as a commission error.
-        if precision_matrix[non_matched_pred].sum() < min_precision_for_oversegmentation:
+        if precision_matrix[non_matched_pred].sum() < min_precision_for_pred:
             non_matched_preds_corresponding_gt.append(np.nan)
         else:
             non_matched_preds_corresponding_gt.append(precision_matrix[non_matched_pred].argmax())
     non_matched_preds_corresponding_gt = np.array(non_matched_preds_corresponding_gt)
 
     ################## get additional info for non matched gts
-    # If there is a prediction that has a sufficiently high recall (> min_recall_for_undersegmentation) with the non_matched_gt, we consider this a case of undersegmentation.
+    # If there is a prediction that has a sufficiently high recall (> min_recall_for_gt) with the non_matched_gt, we consider this a case of undersegmentation.
     # In this case, this part of the code identifies the prediction that represents the undersegmented trees (non_matched_gts_corresponding_pred),
     # and the matched ground truth tree that corresponds to this prediction (non_matched_gts_corresponding_other_tree).
     non_matched_gts_corresponding_pred = []
     non_matched_gts_corresponding_other_tree = []
     for non_matched_gt in non_matched_gts:
-        if recall_matrix[:, non_matched_gt].max() < min_recall_for_undersegmentation: # no undersegmentation error, e.g. in case that the tree is not detected at all
+        if recall_matrix[:, non_matched_gt].max() < min_recall_for_gt: # no undersegmentation error, e.g. in case that the tree is not detected at all
             non_matched_gts_corresponding_other_tree.append(np.nan)
             non_matched_gts_corresponding_pred.append(np.nan)
-        else: # identify corresponding pred and other tree with highest recall > min_recall_for_undersegmentation (if it exists)
+        else: # identify corresponding pred and other tree with highest recall > min_recall_for_gt (if it exists)
             corresponding_pred = np.argmax(recall_matrix[:, non_matched_gt])
             non_matched_gts_corresponding_pred.append(corresponding_pred)
             other_gts = np.delete(np.arange(recall_matrix.shape[1]), non_matched_gt)
-            argmax_recall_other_gts = recall_matrix[corresponding_pred, other_gts].argmax()
+            argmin_recall_other_gts = recall_matrix[corresponding_pred, other_gts].argmax()
             
-            if recall_matrix[corresponding_pred, other_gts][argmax_recall_other_gts] < min_recall_for_undersegmentation:
+            if recall_matrix[corresponding_pred, other_gts][argmin_recall_other_gts] < min_recall_for_gt:
                 non_matched_gts_corresponding_other_tree.append(np.nan)
             else:
-                non_matched_gts_corresponding_other_tree.append(other_gts[argmax_recall_other_gts])
+                non_matched_gts_corresponding_other_tree.append(other_gts[argmin_recall_other_gts])
                 
     non_matched_gts_corresponding_pred = np.array(non_matched_gts_corresponding_pred)
     non_matched_gts_corresponding_other_tree = np.array(non_matched_gts_corresponding_other_tree)

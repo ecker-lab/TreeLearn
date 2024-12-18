@@ -3,11 +3,12 @@ paths:
   gt_forest_path: 'data/benchmark/L1W_voxelized01_for_eval.laz' # path to ground truth forest point cloud
 
 thresholds:
-  min_iou_for_match: 0.5 # minimumn pointwise iou between predicted and ground truth tree for hungarian matching (>> 0 required to prevent zero iou matching)
-  min_precision_for_oversegmentation: 0.5 # maximum over all i of precision(prediction, ground_truth_i) must be larger than min_precision_for_oversegmentation for an unmatched prediction to count as oversegmentation
+  min_iou_for_match: 0.5 # minimum pointwise iou between predicted and ground truth tree for hungarian matching (>> 0 required to prevent zero iou matching)
+  min_precision_for_pred: 0.5 # sum over all i of precision(prediction, ground_truth_i) must be larger than min_precision_for_pred for an unmatched prediction to count as commission error (oversegmentation or heavy undersegmentation)
   # Otherwise it might just be a separate tree prediction (maybe a smaller tree) that was not annotated in the ground truth.
-  min_recall_for_undersegmentation: 0.5 # maximum over all i of recall(prediction_i, ground_truth) must be larger than min_recall_for_undersegmentation for an unmatched ground truth to count as undersegmentation
-  # Otherwise it might just be a tree that was not predicted at all. This is a more fine-grained distinction that was not made in the paper, but might be interesting to have.
+  min_recall_for_gt: 0.5 # max over all i of recall(prediction_i, ground_truth) must be larger than min_recall_for_gt for an unmatched ground truth to have a corresponding prediction (most likely undersegmentation)
+  # Otherwise, the ground truth tree was most likely not detected at all. This is not relevant to calculate the ommission error and was not mentioned in the paper.
+  # However, it can be used to pair unmatched ground truth trees with predictions for visualization purposes.
 
 partitions:
   xy_partition: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] # radial division of each tree into segments (see paper for details)
