@@ -44,7 +44,7 @@ python tools/evaluation/evaluate.py --config configs/evaluation/evaluate.yaml
 ```
 
 *3) Obtain more fine-grained evaluation results*
-* Aggregated segmentation results will automatically saved in the log of the evaluation script.
+* Aggregated segmentation results will be automatically saved in the log of the evaluation script.
 * To take a look at segmentation results and errors of individual trees, we prepared a notebook that can be found at ``tools/evaluation/evaluate.ipynb``
 
 Running the evaluation script on arbitrary forest point clouds works analogously. You only need to change the argument 'pred_forest_path' and 'gt_forest_path' in the evaluate configuration at ``configs/evaluation/evaluate.yaml`` to where your point clouds are located.
