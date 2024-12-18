@@ -38,7 +38,7 @@ To run the evaluation on L1W, you need to first obtain segmentation results as d
 python tree_learn/util/download.py --dataset_name benchmark_dataset_evaluation --root_folder data/benchmark
 ```
 
-*2\) Run the evaluation and inspect the evaluation results*
+*2\) Run the evaluation*
 ```
 python tools/evaluation/evaluate.py --config configs/evaluation/evaluate.yaml
 ```
