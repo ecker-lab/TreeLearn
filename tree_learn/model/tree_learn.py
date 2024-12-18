@@ -104,16 +104,12 @@ class TreeLearn(nn.Module):
 
 
     @cuda_cast
-    def get_loss(self, model_output, semantic_labels, offset_labels, masks_off, masks_sem, coords, batch_ids, **kwargs):
+    def get_loss(self, model_output, semantic_labels, offset_labels, masks_off, masks_sem, **kwargs):
         loss_dict = dict()
         
         # Define variables
         semantic_prediction_logits = model_output['semantic_prediction_logits'].float()
         offset_predictions = model_output['offset_predictions'].float()
-        # semantic_prediction_logits = model_output['semantic_prediction_logits'][masks_sem].float()
-        # semantic_labels = semantic_labels[masks_sem]
-        # offset_labels = offset_labels[masks_off].float()
-        # offset_predictions = model_output['offset_predictions'][masks_off].float()
         
         # semantic and offset losses
         semantic_loss, offset_loss = point_wise_loss(
