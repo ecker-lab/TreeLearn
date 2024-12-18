@@ -7,7 +7,7 @@ The evaluation functionality provided in this repository can be used to obtain e
     * The first three rows are the x, y and z coordinates in m scale.
     * The last row contains the labels: -1 (non-annotated points), 0 (non-tree points), 1 (tree 1), 2 (tree 2), ...
 * Additional information:
-    * Non-annotated points do not necessarily have to be included in the ground truth dataset. However, many published forest datasets include it.
+    * Non-annotated points do not necessarily have to be included in the ground truth dataset. However, some published forest datasets include it and we think this is a good idea, as we argue below.
     * Non-tree points are ground points, understory vegetation, etc. that are not part of any tree. However, often smaller trees are also labeled as non-tree points.
     * Strictly speaking, ground truth trees need only be labeled with integers != -1 and != 0. As stated above, the simplest would be 1, 2, 3, ... but in principle they do not have to be consecutive, e.g. 1, 3, 4, 5, 7, ... is also ok.
 
