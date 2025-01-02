@@ -178,7 +178,6 @@ def run_treelearn_pipeline(config, config_path=None):
 
     for save_format in config.save_cfg.save_formats:
         save_data(np.hstack([coords_to_return, preds_to_return.reshape(-1, 1)]), save_format, plot_name, full_dir)
-        save_data(np.hstack([coords_to_return, preds_to_return.reshape(-1, 1)]), save_format, plot_name, full_dir)
     if config.save_cfg.save_treewise:
         trees_dir = os.path.join(results_dir, 'individual_trees')
         os.makedirs(trees_dir, exist_ok=True)

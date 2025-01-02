@@ -11,6 +11,7 @@ The paper can be found [here](https://www.sciencedirect.com/science/article/pii/
 * 【2024/06/19】 Faster algorithm for propagation of results to original point cloud (speeds up inference⚡).
 * 【2024/12/17】 📊 Updated evaluation script so that the evaluation protocol from the paper can be run with arbitrary methods and forest point clouds.
 * 【2024/12/17】 🆕 Added new model weights that were trained on crops without statistical outlier filtering (speeds up inference⚡).
+* 【2025/01/02】 🆕 Our pipeline now also supports hdbscan for more flexible clustering with only a single hyperparameter.
 
 ## Demo [Currently non-functional]
 For a quick demo of the capabilities of TreeLearn without any manual setup, we prepared a google colab notebook: 

@@ -4,4 +4,4 @@ grouping: # see paper for details on these hyperparameters
   tau_off: 4 # maximum distance from the tree base for a point to be considered during clustering
   tau_group: 0.15 # grouping radius of offset-shifted coordinates for clustering
   tau_min: 50 # After grouping, clusters containing less points than this are discarded immediately since they are deemed to small to be a tree
-  
+  use_hdbscan: True # use hdbscan instead of dbscan for flexible clustering based on one hyperparameter only (tau_min) instead of two for dbscan (tau_min, tau_group)
