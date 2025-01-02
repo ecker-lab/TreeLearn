@@ -37,10 +37,6 @@ def load_data(path):
             assert (tree_mask & non_tree_mask & unlabeled_mask).sum() == 0
 
             points = np.vstack((las_file.x, las_file.y, las_file.z)).T
-            # note that this offset has nothing to do with the offset vector from the TreeLearn method. This offset here is simply for efficient storage of the data
-            # We ignore the z offset value when loading the data since cloud compare ignores it too --> consistent visualization
-            points = points - np.concatenate([las_file.header.offset[:2], np.array([0])]) # ignore z offset value since cloud compare ignores it too --> consistent visualization
-            # points = points - las_file.header.offset
             labels = np.ones(len(points))
             labels[tree_mask] = treeID[tree_mask]
             labels[non_tree_mask] = NON_TREE_CLASS_IN_RAW_DATA
@@ -48,10 +44,6 @@ def load_data(path):
             data = np.hstack([points, labels[:,np.newaxis]])
         else:
             data = np.vstack((las_file.x, las_file.y, las_file.z)).T
-            # note that this offset has nothing to do with the offset vector from the TreeLearn method. This offset here is simply for efficient storage of the data
-            # We ignore the z offset value when loading the data since cloud compare ignores it too --> consistent visualization
-            data = data - np.concatenate([las_file.header.offset[:2], np.array([0])])
-            # data = data - las_file.header.offset
     elif path.endswith('txt'):
         data = pd.read_csv(path, delimiter=' ').to_numpy()
     

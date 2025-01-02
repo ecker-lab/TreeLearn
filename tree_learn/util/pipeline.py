@@ -9,10 +9,10 @@ import tqdm
 import torch
 import random
 import laspy
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 from sklearn.neighbors import NearestNeighbors, KNeighborsClassifier
 from scipy import stats
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, HDBSCAN
 from tree_learn.util.data_preparation import voxelize, compute_features, load_data, SampleGenerator
 
 
@@ -161,7 +161,10 @@ def get_instances(coords, offset, semantic_prediction_logits, grouping_cfg, vert
     predictions[tree_mask] = not_assigned_label_in_grouping
 
     # get predicted instances
-    pred_instances = group_dbscan(cluster_coords_filtered, grouping_cfg.tau_group, grouping_cfg.tau_min, not_assigned_label_in_grouping, start_num_preds)
+    if grouping_cfg.use_hdbscan:
+        pred_instances = group_hdbscan(cluster_coords_filtered, grouping_cfg.tau_min, not_assigned_label_in_grouping, start_num_preds)
+    else:
+        pred_instances = group_dbscan(cluster_coords_filtered, grouping_cfg.tau_group, grouping_cfg.tau_min, not_assigned_label_in_grouping, start_num_preds)
     predictions[ind_cluster] = pred_instances 
     return predictions.astype(np.int64)
 
@@ -169,6 +172,17 @@ def get_instances(coords, offset, semantic_prediction_logits, grouping_cfg, vert
 # DBSCAN
 def group_dbscan(cluster_coords, radius, npoint_thr, not_assigned_label_in_grouping, start_num_preds):
     clustering = DBSCAN(eps=radius, min_samples=2, n_jobs=N_JOBS).fit(cluster_coords)
+    cluster_nums, n_points = np.unique(clustering.labels_, return_counts=True)
+    valid_cluster_nums = cluster_nums[(n_points >= npoint_thr) & (cluster_nums != -1)]
+    ind_valid = np.isin(clustering.labels_, valid_cluster_nums)
+    clustering.labels_[ind_valid], _ = make_labels_consecutive(clustering.labels_[ind_valid], start_num=start_num_preds)
+    clustering.labels_[np.logical_not(ind_valid)] = not_assigned_label_in_grouping
+    return clustering.labels_
+
+
+# HDBSCAN
+def group_hdbscan(cluster_coords, npoint_thr, not_assigned_label_in_grouping, start_num_preds):
+    clustering = HDBSCAN(min_cluster_size=npoint_thr, n_jobs=N_JOBS).fit(cluster_coords)
     cluster_nums, n_points = np.unique(clustering.labels_, return_counts=True)
     valid_cluster_nums = cluster_nums[(n_points >= npoint_thr) & (cluster_nums != -1)]
     ind_valid = np.isin(clustering.labels_, valid_cluster_nums)
@@ -227,10 +241,12 @@ def grid_points(coords, grid_size):
 # get buffer around hull
 def get_hull_buffer(coords, alpha, buffersize):
     # create 2-dimensional hull of forest xy-coordinates
-    coords = grid_points(coords, grid_size=0.25)
+    coords_mean = np.mean(coords, axis=0)
+    coords = grid_points(coords - coords_mean, grid_size=0.25)
     
     # create 2-dimensional hull of forest xy-coordinates and from this create hull buffer
     hull_polygon = alphashape.alphashape(coords, alpha)
+    hull_polygon = shift_hull(hull_polygon, coords_mean)
     hull_line = hull_polygon.boundary
     hull_line_geoseries = geopandas.GeoSeries(hull_line)
     hull_buffer = hull_line_geoseries.buffer(buffersize)
@@ -241,14 +257,24 @@ def get_hull_buffer(coords, alpha, buffersize):
 # get hull
 def get_hull(coords, alpha):
     # create 2-dimensional hull of forest xy-coordinates
-    coords = grid_points(coords, grid_size=0.25)
+    coords_mean = np.mean(coords, axis=0)
+    coords = grid_points(coords - coords_mean, grid_size=0.25)
 
     hull_polygon = alphashape.alphashape(coords, alpha)
+    hull_polygon = shift_hull(hull_polygon, coords_mean)
     hull_polygon_geoseries = geopandas.GeoSeries(hull_polygon)
     hull_polygon_geodf = geopandas.GeoDataFrame(geometry=hull_polygon_geoseries)
     return hull_polygon_geodf
 
 
+def shift_hull(hull_polygon, shift):
+    assert isinstance(hull_polygon, Polygon), "failed to calculate concave hull. Set alpha=0 to use convex hull or set outer_remove=~"
+    vertices = np.array(hull_polygon.exterior.coords)
+    modified_vertices = vertices + shift
+    hull_polygon = Polygon(modified_vertices)
+    return hull_polygon
+    
+    
 # get cluster means (used to identify edge trees)
 def get_cluster_means(coords, labels):
     df = pd.DataFrame(coords, columns=['x', 'y', 'z'])
@@ -323,12 +349,11 @@ def save_data(data, save_format, save_name, save_folder, use_offset=True):
         # Create a new LAS file
         header = laspy.LasHeader(version="1.2", point_format=3)
         if use_offset:
-            mean_x, mean_y, _ = points.mean(0)
-            header.offsets = [mean_x, mean_y, 0]
+            mean_x, mean_y, mean_z = points.mean(0)
+            header.offsets = [mean_x, mean_y, mean_z]
         else:
             header.offsets = [0, 0, 0]
         
-        points = points + header.offsets
         header.scales = [0.001, 0.001, 0.001]
         las = laspy.LasData(header)
 
@@ -370,6 +395,7 @@ def save_data(data, save_format, save_name, save_folder, use_offset=True):
 
 # save individual tree point clouds
 def save_treewise(coords, instance_preds, cluster_means_within_hull, insts_not_at_edge, save_format, plot_results_dir, non_trees_label_in_grouping):
+    coords = coords - np.mean(coords, axis=0) # avoid large coordinates
     completely_inside_dir = os.path.join(plot_results_dir, 'completely_inside')
     trunk_base_inside_dir = os.path.join(plot_results_dir, 'trunk_base_inside')
     trunk_base_outside_dir = os.path.join(plot_results_dir, 'trunk_base_outside')
@@ -381,7 +407,8 @@ def save_treewise(coords, instance_preds, cluster_means_within_hull, insts_not_a
         pred_coord = coords[instance_preds == i]
         pred_coord = np.hstack([pred_coord, i * np.ones(len(pred_coord))[:, None]])
         if i == non_trees_label_in_grouping:
-            save_data(pred_coord, save_format, 'non_trees', plot_results_dir)
+            # use offset=false here for easy visualization of all individual trees in cloudcompare
+            save_data(pred_coord, save_format, 'non_trees', plot_results_dir, use_offset=False)
             continue
 
         if cluster_means_within_hull[i-1] and insts_not_at_edge[i-1]:

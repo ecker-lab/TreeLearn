@@ -31,19 +31,19 @@ class automatically_segmented_data:
 
 class benchmark_dataset:
     files = [
-        ["QXXJ2I", "L1W.laz"]
+        ["ZITXOQ", "L1W.laz"]
     ]
 
 
 class benchmark_dataset_voxelized:
     files = [
-        ["AQM6VO", "L1W_voxelized01.laz"]
+        ["1K7MCR", "L1W_voxelized01.laz"]
     ]
 
 
 class benchmark_dataset_evaluation:
     files = [
-        ["65Q3NW", "L1W_voxelized01_for_eval.laz"]
+        ["GOKV7W", "L1W_voxelized01_for_eval.laz"]
     ]
 
 

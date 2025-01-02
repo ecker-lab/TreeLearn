@@ -58,3 +58,13 @@ def modify_default_cfg(default_config, main_cfg):
             modify_default_cfg(default_config[key], value)
         else:
             default_config[key] = value
+
+def munch_to_dict(obj):
+    if isinstance(obj, Munch):
+        return {key: munch_to_dict(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [munch_to_dict(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(munch_to_dict(item) for item in obj)
+    else:
+        return obj

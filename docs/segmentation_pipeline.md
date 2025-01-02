@@ -37,6 +37,9 @@ It should be noted that the results obtained in this guide will be inflated sinc
 In general, a short explanation of all arguments is given in the config files themselves. In the following, we will explain those arguments (in case they are not self-explaining) that can be adapted by the user depending on their needs:
 
 *1\) Modifying tree detection behavior by modifying ``configs/_modular_/grouping.yaml``*
+
+* Note: By default, the segmentation pipeline now uses HDBSCAN, which does not rely on tau_group, but only on tau_min. Therefore, unless you use DBSCAN, a modification of tau_group is not needed anymore.
+
 * ``grouping: tau_group``: This parameter determines the minimum distance for two points to be considered connected during the clustering of the offset-shifted coordinates. When the resolution of the tree trunks is lower than the expected one point per 0.1 m voxel, the default grouping radius might fail due to tree clusters being too sparse. In that case, you can experiment with increasing tau_group and check if results get better. However, it should be noted that setting tau_group too high will at some point lead to merged trees.
 
 * ``grouping: tau_min``. This parameter determines the minimum number of points required for a valid tree cluster. Points belonging to clusters with less points will be discarded and assigned to nearby trees. Once again, if the resolution of the tree trunks is very low, valid tree clusters might only contain very few points. In that case, you can experiment with decreasing tau_min and see if results improve. However, it should be noted that setting tau_min too low will at some point result in a large number of false positive detections.

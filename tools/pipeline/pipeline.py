@@ -6,7 +6,7 @@ import pprint
 import shutil
 from tree_learn.dataset import TreeDataset
 from tree_learn.model import TreeLearn
-from tree_learn.util import (build_dataloader, get_root_logger, load_checkpoint, ensemble, 
+from tree_learn.util import (munch_to_dict, build_dataloader, get_root_logger, load_checkpoint, ensemble, 
                              get_coords_within_shape, get_hull_buffer, get_hull, get_cluster_means,
                              propagate_preds, save_treewise, load_data, save_data, make_labels_consecutive, 
                              get_config, generate_tiles, assign_remaining_points_nearest_neighbor,
@@ -38,8 +38,8 @@ def run_treelearn_pipeline(config, config_path=None):
     os.makedirs(results_dir, exist_ok=True)
 
     # documentation
-    logger = get_root_logger(os.path.join(documentation_dir, 'log_pipeline'))
-    logger.info(pprint.pformat(config, indent=2))
+    logger = get_root_logger(os.path.join(documentation_dir, 'log_pipeline.txt'))
+    logger.info(pprint.pformat(munch_to_dict(config), indent=2))
     if config_path is not None:
         shutil.copy(args.config, os.path.join(documentation_dir, os.path.basename(args.config)))
 
@@ -177,7 +177,6 @@ def run_treelearn_pipeline(config, config_path=None):
     os.makedirs(full_dir, exist_ok=True)
 
     for save_format in config.save_cfg.save_formats:
-        save_data(np.hstack([coords_to_return, preds_to_return.reshape(-1, 1)]), save_format, plot_name, full_dir)
         save_data(np.hstack([coords_to_return, preds_to_return.reshape(-1, 1)]), save_format, plot_name, full_dir)
     if config.save_cfg.save_treewise:
         trees_dir = os.path.join(results_dir, 'individual_trees')
