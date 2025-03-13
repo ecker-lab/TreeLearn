@@ -41,8 +41,8 @@ def generate_tiles(cfg, forest_path, logger, return_type='voxelized'):
     if (not osp.exists(save_path_voxelized)) or (return_type == 'original' and not osp.exists(save_path_voxelized_original_idx)):
         data = load_data(forest_path)
         data, original_idx = voxelize(data, cfg.voxel_size)
-        data = np.round(data, 2)
         data = data.astype(np.float32)
+        data = np.round(data, 2)
         np.savez_compressed(save_path_voxelized, points=data[:, :3], labels=data[:, 3])
 
         if return_type == 'original':
