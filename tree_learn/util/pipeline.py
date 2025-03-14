@@ -241,7 +241,7 @@ def grid_points(coords, grid_size):
 # get buffer around hull
 def get_hull_buffer(coords, alpha, buffersize):
     # create 2-dimensional hull of forest xy-coordinates
-    coords_mean = np.mean(coords, axis=0)
+    coords_mean = np.mean(coords, axis=0, dtype=np.float64)
     coords = grid_points(coords - coords_mean, grid_size=0.25)
     
     # create 2-dimensional hull of forest xy-coordinates and from this create hull buffer
@@ -257,7 +257,7 @@ def get_hull_buffer(coords, alpha, buffersize):
 # get hull
 def get_hull(coords, alpha):
     # create 2-dimensional hull of forest xy-coordinates
-    coords_mean = np.mean(coords, axis=0)
+    coords_mean = np.mean(coords, axis=0, dtype=np.float64)
     coords = grid_points(coords - coords_mean, grid_size=0.25)
 
     hull_polygon = alphashape.alphashape(coords, alpha)
