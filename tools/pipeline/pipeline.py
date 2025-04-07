@@ -27,16 +27,28 @@ def run_treelearn_pipeline(config, config_path=None):
     unvoxelized_data_dir = os.path.join(base_dir, 'forest')
     voxelized_data_dir = os.path.join(base_dir, f'forest_voxelized{config.sample_generation.voxel_size}')
     tiles_dir = os.path.join(base_dir, 'tiles')
-    
     results_dir_name = getattr(config.save_cfg, 'results_dir', 'results')
     results_dir = os.path.join(base_dir, results_dir_name)
-    
+
     os.makedirs(documentation_dir, exist_ok=True)
     os.makedirs(unvoxelized_data_dir, exist_ok=True)
     os.makedirs(voxelized_data_dir, exist_ok=True)
     os.makedirs(tiles_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
-
+    
+    # quick and dirty fix for the fact that method throws errors/does not work with high-magnitude coords
+    # --> center coords and de-center at the end
+    data = load_data(config.forest_path)
+    xyz = data[:, :3].astype(np.float64)
+    xyz_mean = np.mean(xyz, 0).astype(np.float64)
+    xyz_centered = xyz - xyz_mean
+    # avoids overwriting of original file
+    if not config.forest_path.endswith('.npz'):
+        config.forest_path = config.forest_path[:-4] + '.npz'
+    else:
+        config.forest_path = config.forest_path[:-4] + '.npy'
+    np.savez_compressed(config.forest_path, points=xyz_centered)
+    
     # documentation
     logger = get_root_logger(os.path.join(documentation_dir, 'log_pipeline.txt'))
     logger.info(pprint.pformat(munch_to_dict(config), indent=2))
@@ -170,6 +182,9 @@ def run_treelearn_pipeline(config, config_path=None):
     # propagate predictions to points that were not yet propagated
     if not_yet_propagated.any():
         preds_to_return[not_yet_propagated] = propagate_preds(coords, instance_preds, coords_to_return[not_yet_propagated], n_neighbors=5)
+        
+    # # add xyz_mean again which was potentially subtracted at the beginning
+    coords_to_return = coords_to_return.astype(np.float64) + xyz_mean
         
     # save
     logger.info(f'{plot_name}: #################### Saving ####################')
