@@ -27,6 +27,10 @@ def load_data(path):
             data = np.hstack((data["points"], data["labels"][:,np.newaxis]))
     elif path.endswith('.las') or path.endswith('.laz'):
         las_file = laspy.read(path)
+        x = las_file.X * las_file.header.scales[0] + las_file.header.offsets[0]
+        y = las_file.Y * las_file.header.scales[1] + las_file.header.offsets[1]
+        z = las_file.Z * las_file.header.scales[2] + las_file.header.offsets[2]
+        points = np.vstack((x, y, z)).T
         if hasattr(las_file, 'treeID') and hasattr(las_file, 'classification'):
             treeID = np.array(las_file.treeID)
             classes = np.array(las_file.classification)
@@ -35,15 +39,14 @@ def load_data(path):
             non_tree_mask = np.isin(classes, [1, 2]) # terrain or vegetation according to For-Instance labeling convention (https://zenodo.org/records/8287792)
             unlabeled_mask = np.logical_not(tree_mask) & np.logical_not(non_tree_mask)
             assert (tree_mask & non_tree_mask & unlabeled_mask).sum() == 0
-
-            points = np.vstack((las_file.x, las_file.y, las_file.z)).T
+            
             labels = np.ones(len(points))
             labels[tree_mask] = treeID[tree_mask]
             labels[non_tree_mask] = NON_TREE_CLASS_IN_RAW_DATA
             labels[unlabeled_mask] = INSTANCE_LABEL_IGNORE_IN_RAW_DATA
             data = np.hstack([points, labels[:,np.newaxis]])
         else:
-            data = np.vstack((las_file.x, las_file.y, las_file.z)).T
+            data = points
     elif path.endswith('txt'):
         data = pd.read_csv(path, delimiter=' ').to_numpy()
     
